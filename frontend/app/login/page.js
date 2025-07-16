@@ -107,13 +107,7 @@ export default function LoginPage() {
             </button>
           </div>
 
-          <div className="text-center">
-            <div className="text-sm text-gray-600 bg-yellow-50 p-3 rounded-md border border-yellow-200">
-              <strong>Dane logowania:</strong><br />
-              Użytkownik: <code className="bg-gray-100 px-1 rounded">admin</code><br />
-              Hasło: <code className="bg-gray-100 px-1 rounded">Secure2024DocxEdit</code>
-            </div>
-          </div>
+
         </form>
       </div>
     </div>
