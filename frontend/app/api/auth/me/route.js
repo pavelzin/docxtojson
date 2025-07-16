@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { verifyToken } from '../../../../lib/auth.js';
+const { verifyToken } = require('../../../../lib/auth-simple.js');
 
 export async function GET(request) {
   try {

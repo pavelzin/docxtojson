@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
+import { useAuth } from '@/lib/auth-context';
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({
@@ -11,6 +12,7 @@ export default function LoginPage() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { checkAuth } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -29,6 +31,7 @@ export default function LoginPage() {
 
       if (response.ok) {
         toast.success('Zalogowano pomyślnie!');
+        await checkAuth();
         router.push('/');
         router.refresh();
       } else {
