@@ -1,0 +1,19 @@
+{
+  "files": [
+    {
+      "filePath": "./input/artykul1.docx",
+      "titleSocial": "Te psy potrafią wyczuć chorobę, zanim zauważy ją lekarz. Sprawdź, które rasy pokochają aktywni seniorzy!",
+      "articleId": "ART1"
+    },
+    {
+      "filePath": "./input/artykul2.docx", 
+      "titleSocial": "Te znaki zodiaku zawsze mają dobry humor – sprawdź, czy jesteś wśród nich!",
+      "articleId": "ART2"
+    },
+    {
+      "filePath": "./input/artykul3.docx",
+      "titleSocial": "Ten produkt z kuchni może odmienić twoje życie! Zobacz, jak go używać",
+      "articleId": "ART3"
+    }
+  ]
+} 

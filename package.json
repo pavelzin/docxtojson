@@ -1,0 +1,23 @@
+{
+  "name": "docx-to-json-converter",
+  "version": "1.0.0",
+  "description": "Konwerter DOCX na JSON dla Polsat News z automatycznym uzupełnianiem przez LLM",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "mammoth": "^1.6.0",
+    "openai": "^4.20.1",
+    "dotenv": "^16.3.1",
+    "commander": "^11.1.0",
+    "chalk": "^4.1.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "keywords": ["docx", "json", "converter", "polsat", "cms", "llm"],
+  "author": "Your Name",
+  "license": "MIT"
+} 
