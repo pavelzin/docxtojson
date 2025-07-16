@@ -1,11 +1,5 @@
 {
-  "/import/page": "app/import/page.js",
-  "/api/drive/browse/route": "app/api/drive/browse/route.js",
-  "/api/auth/me/route": "app/api/auth/me/route.js",
-  "/api/drive/auth/route": "app/api/drive/auth/route.js",
-  "/api/articles/route": "app/api/articles/route.js",
-  "/api/sync-stats/route": "app/api/sync-stats/route.js",
-  "/api/drive/status/route": "app/api/drive/status/route.js",
+  "/_not-found/page": "app/_not-found/page.js",
   "/page": "app/page.js",
-  "/api/drive/callback/route": "app/api/drive/callback/route.js"
+  "/import/page": "app/import/page.js"
 }

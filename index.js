@@ -182,11 +182,38 @@ class DocxToJsonConverter {
             description = description.replace(leadRegex, '').trim();
         }
         
+        // Czyszczenie niechcianych tagów HTML
+        description = this.cleanUnwantedHtmlTags(description);
+        
         // Formatowanie HTML
         description = description.replace(/<\/p>\s*<p/g, '</p><br><p');
         description = description.replace(/<\/h([1-6])>/g, '</h$1><br>');
         
         return description;
+    }
+
+    /**
+     * Usuwa niechciane tagi HTML (kotwice, obrazy, itp.)
+     */
+    cleanUnwantedHtmlTags(html) {
+        let cleaned = html;
+        
+        // Usuń wszystkie tagi <a> (kotwice i linki)
+        // Usuwamy zarówno <a id="..."></a> jak i <a href="...">tekst</a>
+        cleaned = cleaned.replace(/<a[^>]*>.*?<\/a>/gi, '');
+        cleaned = cleaned.replace(/<a[^>]*>/gi, ''); // samozamykające się
+        
+        // Usuń wszystkie tagi <img> (obrazy z base64 i inne)
+        cleaned = cleaned.replace(/<img[^>]*\/?>/gi, '');
+        
+        // Usuń puste akapity powstałe po usunięciu tagów
+        cleaned = cleaned.replace(/<p>(\s|&nbsp;)*<\/p>/gi, '');
+        
+        // Usuń wielokrotne spacje i przejścia do nowej linii
+        cleaned = cleaned.replace(/\s+/g, ' ');
+        cleaned = cleaned.replace(/>\s+</g, '><');
+        
+        return cleaned.trim();
     }
 
     /**

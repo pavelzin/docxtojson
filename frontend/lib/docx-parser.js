@@ -90,10 +90,8 @@ export class DocxParser {
     // Formatowanie HTML (opcjonalnie)
     description = description.replace(/<\/h([1-6])>/g, '</h$1>');
 
-    // USUŃ WSZYSTKIE <a id="..."></a> (puste kotwice mammoth)
-    description = description.replace(/<a id="[^"]*"><\/a>/g, '');
-    // USUŃ <a id="..."></a> na początku nagłówków
-    description = description.replace(/<h([1-6])>\s*<a id="[^"]*"><\/a>\s*/g, '<h$1>');
+    // Czyszczenie niechcianych tagów HTML
+    description = this.cleanUnwantedHtmlTags(description);
 
     // USUŃ każdy <h1> bardzo podobny do tytułu
     description = description.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, (match, h1text) => isSimilar(h1text, title) ? '' : match);
@@ -114,6 +112,30 @@ export class DocxParser {
       description: description || '',
       lead: lead || ''
     };
+  }
+
+  /**
+   * Usuwa niechciane tagi HTML (kotwice, obrazy, itp.)
+   */
+  cleanUnwantedHtmlTags(html) {
+    let cleaned = html;
+    
+    // Usuń wszystkie tagi <a> (kotwice i linki)
+    // Usuwamy zarówno <a id="..."></a> jak i <a href="...">tekst</a>
+    cleaned = cleaned.replace(/<a[^>]*>.*?<\/a>/gi, '');
+    cleaned = cleaned.replace(/<a[^>]*>/gi, ''); // samozamykające się
+    
+    // Usuń wszystkie tagi <img> (obrazy z base64 i inne)
+    cleaned = cleaned.replace(/<img[^>]*\/?>/gi, '');
+    
+    // Usuń puste akapity powstałe po usunięciu tagów
+    cleaned = cleaned.replace(/<p>(\s|&nbsp;)*<\/p>/gi, '');
+    
+    // Usuń wielokrotne spacje i przejścia do nowej linii
+    cleaned = cleaned.replace(/\s+/g, ' ');
+    cleaned = cleaned.replace(/>\s+</g, '><');
+    
+    return cleaned.trim();
   }
 
   /**
