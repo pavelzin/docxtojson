@@ -2,10 +2,18 @@ const bcrypt = require('bcryptjs');
 const sqlite3 = require('sqlite3');
 
 async function changeAdminPassword() {
-  const newPassword = 'Secure2024DocxEdit';
+  // Pobierz argumenty z linii komend
+  const args = process.argv.slice(2);
+  if (args.length < 2) {
+    console.log('❌ Użycie: node change-password.js <username> <new_password>');
+    process.exit(1);
+  }
+  
+  const username = args[0];
+  const newPassword = args[1];
   const hashedPassword = bcrypt.hashSync(newPassword, 10);
   
-  console.log('🔄 Zmieniam hasło admina...');
+  console.log(`🔄 Zmieniam hasło użytkownika ${username}...`);
   
   const db = new sqlite3.Database('articles.db');
   
@@ -31,8 +39,8 @@ async function changeAdminPassword() {
       )
     `);
 
-    // Sprawdzenie czy admin istnieje
-    db.get('SELECT id FROM users WHERE username = ?', ['admin'], (err, row) => {
+    // Sprawdzenie czy użytkownik istnieje
+    db.get('SELECT id FROM users WHERE username = ?', [username], (err, row) => {
       if (err) {
         console.error('❌ Błąd:', err);
         db.close();
@@ -41,25 +49,25 @@ async function changeAdminPassword() {
 
       if (row) {
         // Update istniejącego użytkownika
-        db.run('UPDATE users SET password = ? WHERE username = ?', [hashedPassword, 'admin'], (err) => {
+        db.run('UPDATE users SET password = ? WHERE username = ?', [hashedPassword, username], (err) => {
           if (err) {
             console.error('❌ Błąd aktualizacji:', err);
           } else {
             console.log('✅ Hasło zostało zmienione!');
-            console.log('👤 Użytkownik: admin');
-            console.log('🔐 Nowe hasło: ' + newPassword);
+            console.log(`👤 Użytkownik: ${username}`);
+            console.log(`🔐 Nowe hasło: ${newPassword}`);
           }
           db.close();
         });
       } else {
         // Tworzenie nowego użytkownika
-        db.run('INSERT INTO users (username, password) VALUES (?, ?)', ['admin', hashedPassword], (err) => {
+        db.run('INSERT INTO users (username, password) VALUES (?, ?)', [username, hashedPassword], (err) => {
           if (err) {
             console.error('❌ Błąd tworzenia użytkownika:', err);
           } else {
-            console.log('✅ Utworzono użytkownika admin!');
-            console.log('👤 Użytkownik: admin');
-            console.log('🔐 Hasło: ' + newPassword);
+            console.log(`✅ Utworzono użytkownika ${username}!`);
+            console.log(`👤 Użytkownik: ${username}`);
+            console.log(`🔐 Hasło: ${newPassword}`);
           }
           db.close();
         });
