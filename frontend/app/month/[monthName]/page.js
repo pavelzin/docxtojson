@@ -288,7 +288,20 @@ export default function MonthPage() {
                     </div>
                   </div>
                   
-                  <div className="ml-4 flex-shrink-0">
+                  <div className="ml-4 flex-shrink-0 flex items-center gap-2">
+                    {(() => {
+                      const ai = article.ai_fields || []
+                      const hasAiFlags = Array.isArray(ai) && (
+                        ai.includes('title_hotnews') || ai.includes('title_social') || ai.includes('title_seo')
+                      )
+                      const hasAnyTitles = !!(article.title_hotnews || article.title_social || article.title_seo)
+                      if (!(hasAiFlags || hasAnyTitles)) return null
+                      return (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                          🤖 AI tytuły
+                        </span>
+                      )
+                    })()}
                     <Link
                       href={`/article/${article.article_id}`}
                       className="text-blue-600 hover:text-blue-900 text-sm font-medium"

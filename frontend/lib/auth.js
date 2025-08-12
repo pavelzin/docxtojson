@@ -1,6 +1,8 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import database from './database.js';
+import sqlite3 from 'sqlite3';
+import path from 'path';
 
 // Używamy bezpośrednio db z database.js
 const db = database.db;
@@ -12,6 +14,38 @@ const DEFAULT_USER = {
   username: 'admin',
   password: '$2a$10$8K1p/a0drteBtjM38FlEOeOlc2D9t1QC9RmF2qQvzlY7YHQ8KgaO2' // bcrypt hash dla 'admin123'
 };
+
+// Prosta funkcja pomocnicza do otwarcia bazy SQLite z promisowanymi metodami
+async function openDb() {
+  const dbPath = path.join(process.cwd(), 'articles.db');
+  const rawDb = new sqlite3.Database(dbPath);
+
+  return {
+    exec(sql) {
+      return new Promise((resolve, reject) => {
+        rawDb.exec(sql, (err) => (err ? reject(err) : resolve()));
+      });
+    },
+    run(sql, params = []) {
+      return new Promise((resolve, reject) => {
+        rawDb.run(sql, params, function (err) {
+          if (err) return reject(err);
+          resolve({ lastID: this.lastID, changes: this.changes });
+        });
+      });
+    },
+    get(sql, params = []) {
+      return new Promise((resolve, reject) => {
+        rawDb.get(sql, params, (err, row) => (err ? reject(err) : resolve(row)));
+      });
+    },
+    close() {
+      return new Promise((resolve, reject) => {
+        rawDb.close((err) => (err ? reject(err) : resolve()));
+      });
+    },
+  };
+}
 
 // Inicjalizacja tabeli użytkowników
 export async function initAuthDB() {

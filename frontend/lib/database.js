@@ -131,6 +131,15 @@ const initializeDatabase = async () => {
       )
     `);
 
+    // Tabela dla szablonów promptów AI (edycja w UI)
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS ai_prompt_templates (
+        field_name TEXT PRIMARY KEY,
+        prompt_text TEXT NOT NULL,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Indeksy
     await dbRun(`CREATE INDEX IF NOT EXISTS idx_articles_article_id ON articles(article_id)`);
     await dbRun(`CREATE INDEX IF NOT EXISTS idx_articles_status ON articles(status)`);
@@ -366,6 +375,21 @@ const articleQueries = {
 
 // Funkcje pomocnicze
 const helpers = {
+  // Zapisz domyślne prompty jeśli nie istnieją
+  ensureDefaultPrompts: async () => {
+    const defaults = {
+      title_hotnews: 'Na podstawie tytułu, leadu i treści wygeneruj krótki, chwytliwy tytuł do maks. 50 znaków. Nie dodawaj cudzysłowów. Zwróć tylko tytuł.',
+      title_social: 'Na podstawie tytułu, leadu i treści wygeneruj tytuł do social media (FB/Discover) – emocjonalny, ale rzetelny, zachęcający do kliknięcia. 70–120 znaków. Zwróć tylko tytuł.',
+      title_seo: 'Na podstawie tytułu, leadu i treści wygeneruj tytuł SEO 60–80 znaków z kluczowymi frazami, naturalny, bez clickbaitu. Zwróć tylko tytuł.',
+      tags: 'Na podstawie tytułu, leadu i treści wygeneruj dokładnie 5 zwięzłych tagów tematycznych po polsku, oddzielonych przecinkami (bez hasztagów). Zwróć tylko listę tagów rozdzielonych przecinkami.'
+    };
+    for (const [field, text] of Object.entries(defaults)) {
+      await dbRun(
+        `INSERT OR IGNORE INTO ai_prompt_templates (field_name, prompt_text) VALUES (?, ?)`,
+        [field, text]
+      );
+    }
+  },
   // Importuj artykuł z parsera JSON
   importArticleFromParser: async (articleData) => {
     try {
@@ -466,5 +490,33 @@ module.exports = {
   db,
   initializeDatabase,
   queries: articleQueries,
-  helpers
+  helpers,
+  // Prompty AI
+  prompts: {
+    getAll: async () => {
+      const rows = await dbAll(`SELECT field_name, prompt_text FROM ai_prompt_templates`);
+      const map = {};
+      rows.forEach(r => { map[r.field_name] = r.prompt_text; });
+      return map;
+    },
+    getOne: async (fieldName) => {
+      return await dbGet(`SELECT prompt_text FROM ai_prompt_templates WHERE field_name = ?`, [fieldName]);
+    },
+    upsertMany: async (entries) => {
+      await dbRun('BEGIN TRANSACTION');
+      try {
+        for (const [field, text] of Object.entries(entries)) {
+          await dbRun(
+            `INSERT INTO ai_prompt_templates (field_name, prompt_text, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+             ON CONFLICT(field_name) DO UPDATE SET prompt_text = excluded.prompt_text, updated_at = CURRENT_TIMESTAMP`,
+            [field, text]
+          );
+        }
+        await dbRun('COMMIT');
+      } catch (e) {
+        await dbRun('ROLLBACK');
+        throw e;
+      }
+    }
+  }
 }; 

@@ -1,5 +1,12 @@
 {
-  "/_not-found/page": "app/_not-found/page.js",
+  "/login/page": "app/login/page.js",
+  "/month/[monthName]/page": "app/month/[monthName]/page.js",
+  "/article/[id]/page": "app/article/[id]/page.js",
+  "/api/articles/[id]/route": "app/api/articles/[id]/route.js",
   "/page": "app/page.js",
-  "/import/page": "app/import/page.js"
+  "/api/ai/generate/[field]/route": "app/api/ai/generate/[field]/route.js",
+  "/api/articles/route": "app/api/articles/route.js",
+  "/api/sync-stats/route": "app/api/sync-stats/route.js",
+  "/api/ai/prompts/route": "app/api/ai/prompts/route.js",
+  "/api/drive/status/route": "app/api/drive/status/route.js"
 }

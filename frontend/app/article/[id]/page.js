@@ -26,6 +26,9 @@ export default function ArticleEditPage({ params }) {
   const previewButtonRef = useRef(null)
   
   const { register, handleSubmit, setValue, watch, formState: { errors, isDirty } } = useForm()
+  const [generating, setGenerating] = useState(false)
+  const [showPrompts, setShowPrompts] = useState(false)
+  const [promptValues, setPromptValues] = useState({ title_hotnews: '', title_social: '', title_seo: '', tags: '' })
 
   useEffect(() => {
     if (id) {
@@ -56,6 +59,18 @@ export default function ArticleEditPage({ params }) {
         setValue('categories', article.categories || [])
         setValue('tags', article.tags || [])
         setValue('status', article.status || 'draft')
+
+        // Pobierz prompty
+        const pr = await fetch('/api/ai/prompts')
+        const prData = await pr.json()
+        if (prData.success) {
+          setPromptValues({
+            title_hotnews: prData.prompts.title_hotnews || '',
+            title_social: prData.prompts.title_social || '',
+            title_seo: prData.prompts.title_seo || '',
+            tags: prData.prompts.tags || ''
+          })
+        }
       } else {
         toast.error('Artykuł nie znaleziony')
         router.push('/')
@@ -65,6 +80,52 @@ export default function ArticleEditPage({ params }) {
       toast.error('Błąd podczas ładowania artykułu')
     } finally {
       setLoading(false)
+    }
+  }
+  const generateField = async (apiField) => {
+    try {
+      setGenerating(true)
+      const res = await fetch(`/api/ai/generate/${apiField}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ articleId: article.article_id })
+      })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error || 'Błąd AI')
+
+      // Mapowanie pola zwrotnego na nazwy formularza
+      if (data.field === 'titleHotnews') setValue('titleHotnews', data.value, { shouldDirty: true })
+      if (data.field === 'titleSocial') setValue('titleSocial', data.value, { shouldDirty: true })
+      if (data.field === 'titleSeo') setValue('titleSeo', data.value, { shouldDirty: true })
+      if (data.field === 'tags') setValue('tags', Array.isArray(data.value) ? data.value : String(data.value).split(',').map(t => t.trim()), { shouldDirty: true })
+      const labelMap = {
+        title_hotnews: 'tytuł Hot News',
+        title_social: 'tytuł Social Media',
+        title_seo: 'tytuł SEO',
+        tags: 'tagi'
+      }
+      const label = labelMap[apiField] || 'pole'
+      toast.success(`Wygenerowano ${label}`)
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const savePrompts = async () => {
+    try {
+      const res = await fetch('/api/ai/prompts', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompts: promptValues })
+      })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error || 'Błąd zapisu promptów')
+      toast.success('Zapisano prompty')
+      setShowPrompts(false)
+    } catch (e) {
+      toast.error(e.message)
     }
   }
 
@@ -331,8 +392,39 @@ export default function ArticleEditPage({ params }) {
             </div>
           </div>
         </div>
-
+        
         {/* Treść */}
+        {/* Toolbar AI nad sekcją treści artykułu */}
+        <div className="flex justify-end gap-2">
+          <button
+            className="btn-secondary"
+            onClick={() => setShowPrompts(true)}
+            type="button"
+          >
+            ✏️ Prompty AI
+          </button>
+          <button
+            className="btn-primary disabled:opacity-50"
+            disabled={generating}
+            onClick={async () => {
+              await generateField('title_hotnews')
+              await generateField('title_social')
+              await generateField('title_seo')
+              await generateField('tags')
+            }}
+            type="button"
+          >
+            {generating ? 'Generuję…' : '🤖 Uzupełnij tytuły i tagi'}
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? 'Zapisywanie...' : 'Zapisz zmiany'}
+          </button>
+        </div>
+
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-6">Treść artykułu</h2>
           
@@ -476,7 +568,7 @@ export default function ArticleEditPage({ params }) {
               >
                 Anuluj
               </Link>
-              
+
               <button
                 type="submit"
                 disabled={saving}
@@ -553,6 +645,46 @@ export default function ArticleEditPage({ params }) {
                     >
                       Zamknij podgląd
                     </button>
+                  </div>
+                </Dialog.Panel>
+              </Transition.Child>
+            </div>
+          </div>
+        </Dialog>
+      </Transition.Root>
+
+      {/* MODAL PROMPTÓW */}
+      <Transition.Root show={showPrompts} as={Fragment}>
+        <Dialog as="div" className="relative z-50" onClose={setShowPrompts}>
+          <Transition.Child as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100" leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0">
+            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
+          </Transition.Child>
+          <div className="fixed inset-0 z-50 overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4 text-center">
+              <Transition.Child as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100" leave="ease-in duration-200" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95">
+                <Dialog.Panel className="relative bg-white rounded-lg shadow-xl max-w-3xl w-full p-6 text-left">
+                  <Dialog.Title className="text-lg font-semibold">Prompty AI</Dialog.Title>
+                  <div className="mt-4 space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Prompt: Tytuł Hot News</label>
+                      <textarea className="input-field w-full" rows={3} value={promptValues.title_hotnews} onChange={e => setPromptValues(v => ({ ...v, title_hotnews: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Prompt: Tytuł Social Media</label>
+                      <textarea className="input-field w-full" rows={3} value={promptValues.title_social} onChange={e => setPromptValues(v => ({ ...v, title_social: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Prompt: Tytuł SEO</label>
+                      <textarea className="input-field w-full" rows={3} value={promptValues.title_seo} onChange={e => setPromptValues(v => ({ ...v, title_seo: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Prompt: Tagi</label>
+                      <textarea className="input-field w-full" rows={3} value={promptValues.tags} onChange={e => setPromptValues(v => ({ ...v, tags: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div className="mt-6 flex justify-end gap-2">
+                    <button className="btn-secondary" onClick={() => setShowPrompts(false)}>Anuluj</button>
+                    <button className="btn-primary" onClick={savePrompts}>Zapisz prompty</button>
                   </div>
                 </Dialog.Panel>
               </Transition.Child>
