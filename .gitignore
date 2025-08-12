@@ -14,6 +14,25 @@ articles.db-journal
 articles.db-wal
 articles.db-shm
 
+# Pliki środowiskowe – trzymaj lokalnie, nie w repo
+# Frontend
+frontend/.env
+frontend/.env.local
+frontend/.env.development
+frontend/.env.development.local
+frontend/.env.production
+frontend/.env.production.local
+
+# Root (CLI/script)
+.env
+.env.local
+.env.development
+.env.development.local
+.env.production
+.env.production.local
+# Pozostaw ewentualne pliki przykładowe
+!.env.example
+
 node_modules/
 .env
 .DS_Store
