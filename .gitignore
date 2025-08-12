@@ -1,3 +1,19 @@
+# Build artefakty Next.js
+frontend/.next/
+
+# Systemowe
+.DS_Store
+
+# Baza danych (SQLite) – nie wersjonujemy
+frontend/articles.db
+frontend/articles.db-journal
+frontend/articles.db-wal
+frontend/articles.db-shm
+articles.db
+articles.db-journal
+articles.db-wal
+articles.db-shm
+
 node_modules/
 .env
 .DS_Store
