@@ -1,13 +1,20 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import path from 'path';
+import { promises as fs } from 'fs';
 import { 
   setCredentials, 
   getNewFilesFromDrive,
   getFilesFromSpecificMonth,
-  downloadDocxFile
+  downloadDocxFile,
+  findBestArticleImage,
+  findBestArticleImageDeep,
+  findMonthFolderId,
+  findArticleFolderId,
+  drive
 } from '@/lib/google-drive';
 import { DocxParser } from '@/lib/docx-parser';
-import { queries } from '@/lib/database';
+import { queries, initializeDatabase } from '@/lib/database';
 
 // Funkcja do pobierania tokenów z cookies
 function getTokensFromCookies() {
@@ -29,6 +36,8 @@ export async function POST(request) {
   let syncId = null;
   
   try {
+    // Upewnij się, że baza (migracje) jest gotowa
+    await initializeDatabase();
     const body = await request.json();
     const { 
       syncType = 'incremental', // 'incremental', 'month', 'full'
@@ -131,6 +140,47 @@ export async function POST(request) {
         const fileBuffer = await downloadDocxFile(file.id);
         const parser = new DocxParser();
         const article = await parser.convertToArticle(fileBuffer, file.name, file.filePath);
+
+        // Spróbuj znaleźć zdjęcie dla artykułu – używamy folderu artykułu, jeśli mamy go w metadanych
+        {
+          let articleFolderId = file.articleFolderId;
+          if (!articleFolderId && file.filePath) {
+            try {
+              const [monthName, ...rest] = file.filePath.split('/');
+              const articleName = rest.join('/');
+              const monthId = await findMonthFolderId(monthName);
+              if (monthId) {
+                articleFolderId = await findArticleFolderId(monthId, articleName);
+              }
+            } catch {}
+          }
+
+          if (articleFolderId) {
+            let bestImage = await findBestArticleImage(articleFolderId);
+            if (!bestImage) {
+              bestImage = await findBestArticleImageDeep(articleFolderId);
+            }
+            if (bestImage) {
+              article.imageFilename = bestImage.name;
+              console.log(`🖼️ [smart-sync] Found image for ${file.fullPath}: ${bestImage.name} (${bestImage.size} B)`);
+              // Pobierz obraz i zapisz lokalnie
+              try {
+                const media = await drive.files.get({ fileId: bestImage.id, alt: 'media' }, { responseType: 'arraybuffer' });
+                const buffer = Buffer.from(media.data);
+                const rel = String(file.filePath || article.drive_path || '').split('/').filter(Boolean);
+                const dir = path.join(process.cwd(), 'public', 'images', ...rel);
+                await fs.mkdir(dir, { recursive: true });
+                await fs.writeFile(path.join(dir, bestImage.name), buffer);
+              } catch (e) {
+                console.warn(`[smart-sync] Nie udało się zapisać obrazu lokalnie: ${e.message}`);
+              }
+            } else {
+              console.log(`🖼️ [smart-sync] No image found for ${file.fullPath}`);
+            }
+          } else {
+            console.log(`🖼️ [smart-sync] Could not resolve articleFolderId for ${file.fullPath}`);
+          }
+        }
         
         // Uzupełnij metadane artykułu
         article.imported_from = `google_drive_${syncType}`;
@@ -138,30 +188,56 @@ export async function POST(request) {
         article.original_filename = file.name;
         article.status = 'draft';
         
-        // Zapisz artykuł do bazy (bez sprawdzania duplikatów - już sprawdzone)
-        await queries.insertArticle(
-          article.articleId,
-          article.title,
-          article.titleHotnews,
-          article.titleSocial,
-          article.titleSeo,
-          article.lead,
-          article.description,
-          article.author,
-          JSON.stringify(article.sources),
-          JSON.stringify(article.categories),
-          JSON.stringify(article.tags),
-          article.status,
-          article.imported_from,
-          article.drive_path,
-          article.original_filename
-        );
-        
-        // Oznacz plik jako przetworzony
-        await queries.markDriveFileAsProcessed(file.id, true);
-        
-        console.log(`✅ Zaimportowano: ${article.title}`);
-        results.imported++;
+        // Jeśli artykuł już istnieje (po tytule), nie wstawiaj duplikatu, ale uzupełnij image_filename jeśli brak
+        const existing = await queries.getArticleByTitle(article.title);
+        if (existing) {
+          if (!existing.image_filename && article.imageFilename) {
+            await queries.setArticleImageFilename(existing.article_id, article.imageFilename);
+            console.log(`🖼️ Uzupełniono obraz dla istniejącego artykułu: ${article.title}`);
+          }
+          results.skipped++;
+        } else {
+          // Jeśli nie znaleziono po tytule – spróbuj po ścieżce i oryginalnej nazwie pliku
+          const existingByPath = await queries.getArticleByPath(article.drive_path, article.original_filename);
+          if (existingByPath) {
+            if (!existingByPath.image_filename && article.imageFilename) {
+              await queries.setArticleImageFilename(existingByPath.article_id, article.imageFilename);
+              console.log(`🖼️ Uzupełniono obraz (po ścieżce) dla: ${existingByPath.title}`);
+            }
+            results.skipped++;
+            continue;
+          }
+
+          // Zapisz artykuł do bazy
+          await queries.insertArticle(
+            article.articleId,
+            article.title,
+            article.titleHotnews,
+            article.titleSocial,
+            article.titleSeo,
+            article.lead,
+            article.description,
+            article.author,
+            JSON.stringify(article.sources),
+            JSON.stringify(article.categories),
+            JSON.stringify(article.tags),
+            article.status,
+            article.imported_from,
+            article.drive_path,
+            article.original_filename
+          );
+
+          // Jeśli znaleziono zdjęcie – zapisz je do bazy
+          if (article.imageFilename) {
+            await queries.setArticleImageFilename(article.articleId, article.imageFilename);
+          }
+
+          // Oznacz plik jako przetworzony
+          await queries.markDriveFileAsProcessed(file.id, true);
+
+          console.log(`✅ Zaimportowano: ${article.title}`);
+          results.imported++;
+        }
         
       } catch (error) {
         console.error(`❌ Błąd przetwarzania ${file.fullPath}:`, error.message);

@@ -40,3 +40,7 @@ node_modules/
 frontend/node_modules/
 frontend/.next/
 frontend/.env.local
+
+# Ignore runtime images
+frontend/public/images/*
+!frontend/public/images/.gitkeep

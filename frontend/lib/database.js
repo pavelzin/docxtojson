@@ -25,6 +25,21 @@ const dbRun = (sql, params = []) => {
 const dbGet = promisify(db.get.bind(db));
 const dbAll = promisify(db.all.bind(db));
 
+// Wydobywa autora zdjęcia z nazwy pliku, bazując na ostatnim segmencie po znakach "_"
+// Przykład: "..._zdjęcie główne_Pexels.jpg" -> "Pexels"
+function extractPhotoAuthorFromFilename(filename) {
+  try {
+    if (!filename || typeof filename !== 'string') return null;
+    const base = filename.split('/').pop();
+    const withoutExt = base.replace(/\.[^.]+$/, '');
+    const segments = withoutExt.split('_');
+    const candidate = segments[segments.length - 1].trim();
+    return candidate || null;
+  } catch {
+    return null;
+  }
+}
+
 // Schemat bazy danych
 const initializeDatabase = async () => {
   try {
@@ -68,6 +83,22 @@ const initializeDatabase = async () => {
     try {
       await dbRun(`ALTER TABLE articles ADD COLUMN original_filename TEXT`);
       console.log('Dodano kolumnę original_filename');
+    } catch (e) {
+      // Kolumna już istnieje
+    }
+
+    // Kolumna na nazwę pliku obrazu
+    try {
+      await dbRun(`ALTER TABLE articles ADD COLUMN image_filename TEXT`);
+      console.log('Dodano kolumnę image_filename');
+    } catch (e) {
+      // Kolumna już istnieje
+    }
+
+    // Kolumna na autora zdjęcia (photoAuthor)
+    try {
+      await dbRun(`ALTER TABLE articles ADD COLUMN photo_author TEXT`);
+      console.log('Dodano kolumnę photo_author');
     } catch (e) {
       // Kolumna już istnieje
     }
@@ -238,6 +269,18 @@ const articleQueries = {
   // Usuń artykuł
   deleteArticle: async (articleId) => {
     return await dbRun(`DELETE FROM articles WHERE article_id = ?`, [articleId]);
+  },
+
+  // Ustaw nazwę pliku obrazu powiązaną z artykułem
+  setArticleImageFilename: async (articleId, imageFilename) => {
+    const photoAuthor = extractPhotoAuthorFromFilename(imageFilename);
+    return await dbRun(`
+      UPDATE articles SET 
+        image_filename = ?, 
+        photo_author = ?,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE article_id = ?
+    `, [imageFilename, photoAuthor, articleId]);
   },
 
   // Wstaw informację o polu AI

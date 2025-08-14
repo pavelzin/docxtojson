@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { setCredentials, downloadDocxFile } from '@/lib/google-drive';
+import path from 'path';
+import { promises as fs } from 'fs';
+import { setCredentials, downloadDocxFile, getFileParentId, findBestArticleImage, drive } from '@/lib/google-drive';
 import { DocxParser } from '@/lib/docx-parser';
-import { queries } from '@/lib/database';
+import { queries, initializeDatabase } from '@/lib/database';
 
 // Funkcja do pobierania tokenów z cookies
 function getTokensFromCookies() {
@@ -22,6 +24,8 @@ function getTokensFromCookies() {
 
 export async function POST(request) {
   try {
+    // Upewnij się, że baza (w tym migracje) jest gotowa
+    await initializeDatabase();
     // Sprawdź autoryzację
     const tokens = getTokensFromCookies();
     if (!tokens) {
@@ -53,6 +57,27 @@ export async function POST(request) {
     const parser = new DocxParser();
     const article = await parser.convertToArticle(docxBuffer, fileName, articlePath);
 
+    // Znajdź przypisany obraz: weź rodzica (folder artykułu) i wybierz największy akceptowalny plik graficzny
+    const parentFolderId = await getFileParentId(fileId);
+    if (parentFolderId) {
+      // Szukaj tylko w bieżącym folderze (bez podfolderów)
+      const bestImage = await findBestArticleImage(parentFolderId);
+      if (bestImage) {
+        article.imageFilename = bestImage.name;
+        // Pobierz zawartość obrazu i zapisz lokalnie
+        try {
+          const media = await drive.files.get({ fileId: bestImage.id, alt: 'media' }, { responseType: 'arraybuffer' });
+          const buffer = Buffer.from(media.data);
+          const relPath = String(articlePath || article.drive_path || '').split('/').filter(Boolean);
+          const localDir = path.join(process.cwd(), 'public', 'images', ...relPath);
+          await fs.mkdir(localDir, { recursive: true });
+          await fs.writeFile(path.join(localDir, bestImage.name), buffer);
+        } catch (e) {
+          console.warn('[IMPORT] Nie udało się zapisać obrazu lokalnie:', e.message);
+        }
+      }
+    }
+
     // Sprawdź czy artykuł z tym tytułem już istnieje
     const existingArticle = await queries.getArticleByTitle(article.title);
     if (existingArticle) {
@@ -81,6 +106,11 @@ export async function POST(request) {
       article.drive_path,
       article.original_filename
     );
+
+    // Jeśli udało się znaleźć obraz, zaktualizuj kolumnę w bazie
+    if (article.imageFilename) {
+      await queries.setArticleImageFilename(article.articleId, article.imageFilename);
+    }
 
     // Oznacz pola jako wygenerowane ręcznie (z parsera)
     const aiFields = {

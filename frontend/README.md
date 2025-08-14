@@ -8,6 +8,7 @@ Nowoczesny interfejs użytkownika do zarządzania artykułami z parsera DOCX na 
 - ✏️ **Przyjazny edytor** z oznaczeniem pól wygenerowanych przez AI
 - 🤖 **Informacja o źródle danych** - jasne rozróżnienie między AI a treścią ręczną
 - 📤 **Export do Google Drive** z automatyczną strukturą katalogów
+- 📤 **Export na FTP** (JSON + obraz) – folder per artykuł
 - 🔄 **Import z parsera** lub przesyłanie plików JSON
 - 📱 **Responsywny design** działający na wszystkich urządzeniach
 
@@ -150,6 +151,21 @@ CREATE TABLE edit_history (
 | `/api/articles/[id]` | DELETE | Usuń artykuł |
 | `/api/articles/sync-from-parser` | POST | Import z parsera DOCX |
 | `/api/export/[id]` | GET | Export artykułu (ZIP) |
+| `/api/export/ftp` | POST | Export artykułu(ów) na FTP |
+
+### Konfiguracja FTP (ENV)
+
+Ustaw domyślne połączenie FTP w `.env.local` (w katalogu `frontend/`):
+
+```
+FTP_HOST=localhost
+FTP_PORT=2121
+FTP_USER=test
+FTP_PASSWORD=test123
+FTP_SECURE=false
+```
+
+Endpoint `/api/export/ftp` użyje w pierwszej kolejności danych z `ftpConfig` w body, a jeżeli ich nie podasz – skorzysta z wartości z ENV.
 
 ## 🎨 Komponenty UI
 

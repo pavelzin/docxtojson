@@ -40,6 +40,7 @@ export async function GET(request, { params }) {
       sources: JSON.parse(article.sources || '[]'),
       categories: JSON.parse(article.categories || '[]'),
       tags: JSON.parse(article.tags || '[]'),
+      imageFilename: article.image_filename || null,
       status: article.status,
       dates: {
         created: article.created_at,

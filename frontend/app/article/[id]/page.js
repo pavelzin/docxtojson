@@ -98,6 +98,15 @@ export default function ArticleEditPage({ params }) {
       if (data.field === 'titleSocial') setValue('titleSocial', data.value, { shouldDirty: true })
       if (data.field === 'titleSeo') setValue('titleSeo', data.value, { shouldDirty: true })
       if (data.field === 'tags') setValue('tags', Array.isArray(data.value) ? data.value : String(data.value).split(',').map(t => t.trim()), { shouldDirty: true })
+
+      // Uaktualnij lokalny stan AI tak, aby badge natychmiast pokazał "AI"
+      const aiKey = data.aiField || apiField
+      if (aiKey) {
+        setAiFields(prev => ({
+          ...prev,
+          [aiKey]: { isAI: true, confidence: 1 }
+        }))
+      }
       const labelMap = {
         title_hotnews: 'tytuł Hot News',
         title_social: 'tytuł Social Media',
@@ -159,14 +168,14 @@ export default function ArticleEditPage({ params }) {
   }
 
   const getFieldIcon = (fieldName) => {
-    if (aiFields[fieldName]?.isAI) {
+    if (aiFields[fieldName]?.isAI || aiFields[fieldName] === true) {
       return <SparklesIcon className="h-4 w-4 text-purple-500" title="Pole wygenerowane przez AI" />
     }
     return <UserIcon className="h-4 w-4 text-green-500" title="Pole wypełnione ręcznie" />
   }
 
   const getFieldBadge = (fieldName) => {
-    if (aiFields[fieldName]?.isAI) {
+    if (aiFields[fieldName]?.isAI || aiFields[fieldName] === true) {
       return (
         <span className="ai-badge">
           🤖 AI ({Math.round((aiFields[fieldName]?.confidence || 0) * 100)}%)
@@ -277,6 +286,35 @@ export default function ArticleEditPage({ params }) {
               📥 Export
             </a>
             <button
+              className="btn-secondary text-sm"
+              onClick={async () => {
+                try {
+                  const host = window.prompt('FTP host (np. ftp.example.com)')
+                  if (!host) throw new Error('Brak hosta FTP')
+                  const user = window.prompt('FTP użytkownik')
+                  if (!user) throw new Error('Brak użytkownika FTP')
+                  const password = window.prompt('FTP hasło')
+                  if (!password) throw new Error('Brak hasła FTP')
+                  const portStr = window.prompt('FTP port (domyślnie 21). Np. 2121', '21')
+                  const port = Number(portStr || '21') || 21
+                  const secure = window.confirm('Użyć FTPS (TLS)? OK=tak / Anuluj=nie')
+                  const res = await fetch('/api/export/ftp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ articleIds: [article.article_id], ftpConfig: { host, port, user, password, secure } })
+                  })
+                  const data = await res.json()
+                  if (!res.ok || !data.success) throw new Error(data.error || 'Błąd eksportu na FTP')
+                  toast.success('Wysłano artykuł na FTP')
+                } catch (e) {
+                  toast.error(e.message)
+                }
+              }}
+              title="Wyślij na FTP"
+            >
+              📤 FTP
+            </button>
+            <button
               ref={previewButtonRef}
               className="btn-primary text-sm"
               onClick={() => setShowPreview(true)}
@@ -300,6 +338,30 @@ export default function ArticleEditPage({ params }) {
           <h2 className="text-lg font-medium text-gray-900 mb-6">Tytuły artykułu</h2>
           
           <div className="space-y-6">
+            {/* Zdjęcie artykułu */}
+            {article.image_filename && article.drive_path && (
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Zdjęcie artykułu</label>
+                <div className="rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+                  <img
+                    src={`/api/drive/image?path=${encodeURIComponent(article.drive_path)}&name=${encodeURIComponent(article.image_filename)}`}
+                    alt={article.title || 'Zdjęcie artykułu'}
+                    className="w-full max-h-[400px] object-contain bg-white"
+                  />
+                  <div className="px-3 py-2 text-xs text-gray-600 border-t bg-white flex items-center justify-between">
+                    <span>Nazwa pliku: <strong>{article.image_filename}</strong></span>
+                    <a
+                      className="text-primary-600 hover:underline"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      href={`/api/drive/image?path=${encodeURIComponent(article.drive_path)}&name=${encodeURIComponent(article.image_filename)}`}
+                    >
+                      Otwórz w nowej karcie
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
             {/* Tytuł główny */}
             <div>
               <div className="flex items-center justify-between mb-2">

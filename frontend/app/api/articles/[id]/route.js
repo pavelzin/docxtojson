@@ -80,10 +80,16 @@ export async function PUT(request, { params }) {
       status
     };
     
+    const aiFields = new Set(['title_hotnews', 'title_social', 'title_seo', 'tags']);
     for (const [fieldName, newValue] of Object.entries(fieldsToCheck)) {
       const oldValue = currentArticle[fieldName];
       if (oldValue !== newValue) {
-        await helpers.updateArticleField(articleId, fieldName, oldValue, newValue, 'user');
+        if (aiFields.has(fieldName)) {
+          // Pole generowane przez AI – zachowaj status AI (nie oznaczaj jako ręczne)
+          await queries.insertAIField(articleId, fieldName, true, 0.9);
+        } else {
+          await helpers.updateArticleField(articleId, fieldName, oldValue, newValue, 'user');
+        }
       }
     }
     

@@ -57,7 +57,8 @@ export async function POST(request) {
         author: article.author || 'Redakcja',
         sources: JSON.parse(article.sources || '["red"]'),
         categories: JSON.parse(article.categories || '["Ciekawostki"]'),
-        tags: JSON.parse(article.tags || '[]')
+        tags: JSON.parse(article.tags || '[]'),
+        imageFilename: article.image_filename || null
       }))
     };
 

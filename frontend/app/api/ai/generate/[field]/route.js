@@ -70,7 +70,14 @@ export async function POST(request, { params }) {
       value = content.replace(/^"|"$/g, '');
     }
 
-    return NextResponse.json({ success: true, field: FIELD_MAP[fieldParam], value });
+    // Zapisz/oznacz pole jako AI w bazie (status AI dla wskaźników)
+    try {
+      await queries.insertAIField(articleId, fieldParam, true, 0.9);
+    } catch (e) {
+      // ignoruj ciche błędy upsertu
+    }
+
+    return NextResponse.json({ success: true, field: FIELD_MAP[fieldParam], value, aiField: fieldParam });
   } catch (e) {
     console.error('AI generation error:', e);
     return NextResponse.json({ success: false, error: 'Błąd generowania AI' }, { status: 500 });
