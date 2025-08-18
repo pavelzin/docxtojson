@@ -250,3 +250,5 @@ Frontend DOCX Editor • v1.3 • Made with Next.js & TailwindCSS
 - Upload obrazów przed JSON + krótkie opóźnienie przed wysyłką `articles.json`.
 - Ignorowanie plików obrazów w repozytorium (`.gitignore`), pozostawienie `.gitkeep`.
 - `frontend/articles.db` przestał być śledzony przez Git i został dodany do `.gitignore`.
+
+Pełna lista zmian: zobacz `CHANGELOG.md`.
