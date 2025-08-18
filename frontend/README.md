@@ -1,4 +1,4 @@
-# 🖥️ DOCX Editor Frontend
+# 🖥️ DOCX Editor Frontend (v1.3)
 
 Nowoczesny interfejs użytkownika do zarządzania artykułami z parsera DOCX na JSON. Stworzony z myślą o zespołach content, którzy potrzebują przyjaznego narzędzia do edycji i eksportu artykułów.
 
@@ -8,7 +8,10 @@ Nowoczesny interfejs użytkownika do zarządzania artykułami z parsera DOCX na 
 - ✏️ **Przyjazny edytor** z oznaczeniem pól wygenerowanych przez AI
 - 🤖 **Informacja o źródle danych** - jasne rozróżnienie między AI a treścią ręczną
 - 📤 **Export do Google Drive** z automatyczną strukturą katalogów
-- 📤 **Export na FTP** (JSON + obraz) – folder per artykuł
+- 📤 **Export na FTP** (JSON + obrazy)
+  - Jeden wspólny katalog docelowy (`FTP_BASE_DIR` lub katalog domyślny użytkownika)
+  - Obrazy wysyłane przed `articles.json` (opóźnienie konfigurowalne: `FTP_JSON_DELAY_MS`)
+  - Unikalne nazwy obrazów: `articleId_slug[_-N].ext`
 - 🔄 **Import z parsera** lub przesyłanie plików JSON
 - 📱 **Responsywny design** działający na wszystkich urządzeniach
 
@@ -238,4 +241,12 @@ Jeśli masz pytania lub potrzebujesz pomocy:
 
 **Stworzono z ❤️ dla zespołów content** 
 
-Frontend DOCX Editor • v1.0 • Made with Next.js & TailwindCSS 
+Frontend DOCX Editor • v1.3 • Made with Next.js & TailwindCSS
+
+## 📝 Podsumowanie zmian v1.3
+
+- Export FTP: wszystko do jednego katalogu, bez podfolderów.
+- Gwarancja unikalnych nazw plików graficznych w jednym folderze.
+- Upload obrazów przed JSON + krótkie opóźnienie przed wysyłką `articles.json`.
+- Ignorowanie plików obrazów w repozytorium (`.gitignore`), pozostawienie `.gitkeep`.
+- `frontend/articles.db` przestał być śledzony przez Git i został dodany do `.gitignore`.
