@@ -3,12 +3,44 @@ import { cookies } from 'next/headers'
 import { queries } from '@/lib/database'
 import { uploadToFtp } from '@/lib/ftp'
 import { drive, findMonthFolderId, findArticleFolderId, getImageFiles, setCredentials } from '@/lib/google-drive'
+import { createHash } from 'crypto'
 
 function sanitizeDirName(name) {
   return String(name || '')
     .replace(/[\\/:*?"<>|]/g, '_')
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+// Prosta funkcja do tworzenia bezpiecznych segmentów nazw plików (ASCII, bez spacji)
+function slugifyFilenameSegment(filename) {
+  const polishChars = {
+    'ą': 'a', 'ć': 'c', 'ę': 'e', 'ł': 'l', 'ń': 'n', 'ó': 'o', 'ś': 's', 'ź': 'z', 'ż': 'z',
+    'Ą': 'A', 'Ć': 'C', 'Ę': 'E', 'Ł': 'L', 'Ń': 'N', 'Ó': 'O', 'Ś': 'S', 'Ź': 'Z', 'Ż': 'Z'
+  }
+  return String(filename || '')
+    .replace(/[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/g, (ch) => polishChars[ch] || ch)
+    .replace(/[^A-Za-z0-9._-]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+function getFileExtension(name) {
+  const n = String(name || '')
+  const idx = n.lastIndexOf('.')
+  if (idx === -1 || idx === n.length - 1) return ''
+  return n.slice(idx + 1)
+}
+
+function makeUniqueName(baseWithoutExt, ext, usedNames) {
+  let candidate = ext ? `${baseWithoutExt}.${ext}` : baseWithoutExt
+  let counter = 1
+  while (usedNames.has(candidate)) {
+    candidate = ext ? `${baseWithoutExt}-${counter}.${ext}` : `${baseWithoutExt}-${counter}`
+    counter += 1
+  }
+  usedNames.add(candidate)
+  return candidate
 }
 
 async function downloadDriveImageByName(drivePath, imageName) {
@@ -98,15 +130,13 @@ export async function POST(request) {
     const operations = []
     const results = []
 
-    const isBulk = articleIds.length > 1
-
-    // Wyznacz katalog docelowy
-    const today = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+    // Zawsze jeden wspólny folder docelowy (bez daty i bez podkatalogów per artykuł)
     const base = envConfig.baseDir ? `/${envConfig.baseDir.replace(/^\/+|\/+$/g,'')}` : ''
-    const bulkRemoteDir = `${base}/${today}`
+    const remoteRoot = base || '/'
 
-    // W trybie bulk przygotujemy tablicę artykułów do jednego JSON
+    // Zawsze budujemy jeden JSON z listą artykułów
     const bulkArticles = []
+    const usedFilenames = new Set()
 
     for (const id of articleIds) {
       const a = await queries.getArticleById(id)
@@ -129,37 +159,8 @@ export async function POST(request) {
       if (a.categories) exportedArticle.categories = JSON.parse(a.categories || '[]')
       if (a.tags) exportedArticle.tags = JSON.parse(a.tags || '[]')
 
-      // Jeśli mamy przypiętą nazwę obrazu, dodaj images nawet gdy nie uda się pobrać pliku (file:///nazwa_pliku)
-      if (a.image_filename) {
-        // Fallback: gdy photo_author jest puste, spróbuj wyciągnąć z nazwy pliku
-        const derivePhotoAuthor = (filename) => {
-          try {
-            if (!filename || typeof filename !== 'string') return null;
-            const base = String(filename).split('/').pop();
-            const withoutExt = base.replace(/\.[^.]+$/, '');
-            const segments = withoutExt.split('_');
-            const candidate = segments[segments.length - 1].trim();
-            return candidate || null;
-          } catch {
-            return null;
-          }
-        }
-        const computedAuthor = a.photo_author || derivePhotoAuthor(a.image_filename);
-        // Ustaw też top-level photoAuthor, jeśli brak, a udało się wyliczyć
-        if (!exportedArticle.photoAuthor && computedAuthor) {
-          exportedArticle.photoAuthor = computedAuthor;
-        }
-        exportedArticle.images = [
-          {
-            url: `file:///${a.image_filename}`,
-            title: a.title_social || a.title
-          }
-        ]
-      }
-
-      // Katalog docelowy per artykuł albo wspólny
-      const dirName = sanitizeDirName(a.title)
-      const remoteDir = isBulk ? bulkRemoteDir : `${base}/${dirName}`
+      // Jeden wspólny katalog docelowy
+      const remoteDir = remoteRoot
       operations.push({ type: 'ensureDir', path: remoteDir })
       console.log(`[FTP-EXPORT] Article ${a.article_id} -> dir=${remoteDir}, image_filename=${a.image_filename || '-'}, drive_path=${a.drive_path || '-'}`)
 
@@ -181,11 +182,18 @@ export async function POST(request) {
             console.log(`[FTP-EXPORT] Top-level lookup result: ${img ? 'FOUND '+img.name : 'NOT FOUND'}`)
           }
           if (img) {
-            // Upload obrazu i wpis do images z lokalnym URL-em file:///
+            // Wygeneruj unikalną nazwę pliku w jednym wspólnym folderze
+            const ext = getFileExtension(img.name) || 'jpg'
+            const titleSlug = slugifyFilenameSegment(a.title)
+            const hash = createHash('sha1').update(img.buffer).digest('hex').slice(0, 6)
+            const baseName = slugifyFilenameSegment(`${a.article_id}_${titleSlug}_${hash}`)
+            const finalName = makeUniqueName(baseName, ext, usedFilenames)
+
+            // Upload obrazu i wpis do images z nazwą pliku (bez file:///)
             operations.push({
               type: 'uploadBuffer',
               remoteDir,
-              remoteName: img.name,
+              remoteName: finalName,
               buffer: img.buffer
             })
             // Upewnij się, że URL odpowiada faktycznej nazwie pliku wrzuconego na FTP
@@ -201,50 +209,38 @@ export async function POST(request) {
                 return null;
               }
             }
-            const computedAuthor = a.photo_author || derivePhotoAuthor(img.name);
+            const computedAuthor = a.photo_author || derivePhotoAuthor(finalName);
             if (!exportedArticle.photoAuthor && computedAuthor) {
               exportedArticle.photoAuthor = computedAuthor;
             }
             exportedArticle.images = [
               {
-                url: `file:///${img.name}`,
+                url: `${finalName}`,
                 title: a.title_social || a.title
               }
             ]
-            console.log(`[FTP-EXPORT] Queued image upload: ${img.name}`)
+            console.log(`[FTP-EXPORT] Queued image upload: ${finalName}`)
           }
         } catch (e) {
           console.warn(`[FTP-EXPORT] Image download failed: ${e.message}`)
         }
       }
 
-      if (isBulk) {
-        bulkArticles.push(exportedArticle)
-      } else {
-        // Single: zapisz JSON tego artykułu w jego katalogu
-        const jsonBuffer = Buffer.from(JSON.stringify({ articles: [exportedArticle] }, null, 2))
-        operations.push({
-          type: 'uploadBuffer',
-          remoteDir,
-          remoteName: `${dirName}.json`,
-          buffer: jsonBuffer
-        })
-      }
+      // Zawsze odkładamy artykuł do wspólnej paczki JSON
+      bulkArticles.push(exportedArticle)
 
       results.push({ id: id, dir: remoteDir, hasImage: Array.isArray(exportedArticle.images) && exportedArticle.images.length > 0 })
     }
 
-    // Wrzut JSON dla trybu bulk do katalogu z dzisiejszą datą
-    if (isBulk) {
-      operations.unshift({ type: 'ensureDir', path: bulkRemoteDir })
-      const bulkJson = Buffer.from(JSON.stringify({ articles: bulkArticles }, null, 2))
-      operations.push({
-        type: 'uploadBuffer',
-        remoteDir: bulkRemoteDir,
-        remoteName: 'articles.json',
-        buffer: bulkJson
-      })
-    }
+    // Wrzut jednego JSON na końcu (po obrazach), do wspólnego katalogu
+    operations.unshift({ type: 'ensureDir', path: remoteRoot })
+    const bulkJson = Buffer.from(JSON.stringify({ articles: bulkArticles }, null, 2))
+    operations.push({
+      type: 'uploadBuffer',
+      remoteDir: remoteRoot,
+      remoteName: 'articles.json',
+      buffer: bulkJson
+    })
 
     if (operations.length === 0) {
       return NextResponse.json({ success: false, error: 'Brak danych do eksportu' }, { status: 400 })
