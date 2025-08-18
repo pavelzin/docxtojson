@@ -3,7 +3,6 @@ import { cookies } from 'next/headers'
 import { queries } from '@/lib/database'
 import { uploadToFtp } from '@/lib/ftp'
 import { drive, findMonthFolderId, findArticleFolderId, getImageFiles, setCredentials } from '@/lib/google-drive'
-import { createHash } from 'crypto'
 
 function sanitizeDirName(name) {
   return String(name || '')
@@ -185,8 +184,8 @@ export async function POST(request) {
             // Wygeneruj unikalną nazwę pliku w jednym wspólnym folderze
             const ext = getFileExtension(img.name) || 'jpg'
             const titleSlug = slugifyFilenameSegment(a.title)
-            const hash = createHash('sha1').update(img.buffer).digest('hex').slice(0, 6)
-            const baseName = slugifyFilenameSegment(`${a.article_id}_${titleSlug}_${hash}`)
+            // Unikalność zapewnia article_id + tytuł; w obrębie jednego eksportu dodatkowo chroni nas makeUniqueName
+            const baseName = slugifyFilenameSegment(`${a.article_id}_${titleSlug}`)
             const finalName = makeUniqueName(baseName, ext, usedFilenames)
 
             // Upload obrazu i wpis do images z nazwą pliku (bez file:///)
