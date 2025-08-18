@@ -130,8 +130,9 @@ export async function POST(request) {
     const results = []
 
     // Zawsze jeden wspólny folder docelowy (bez daty i bez podkatalogów per artykuł)
-    const base = envConfig.baseDir ? `/${envConfig.baseDir.replace(/^\/+|\/+$/g,'')}` : ''
-    const remoteRoot = base || '/'
+    // Używamy ścieżki względnej względem katalogu domyślnego FTP (bez wiodącego '/')
+    const baseDir = envConfig.baseDir ? envConfig.baseDir.replace(/^\/+|\/+$/g,'') : ''
+    const remoteRoot = baseDir || '.'
 
     // Zawsze budujemy jeden JSON z listą artykułów
     const bulkArticles = []
