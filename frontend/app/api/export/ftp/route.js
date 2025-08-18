@@ -235,6 +235,8 @@ export async function POST(request) {
     // Wrzut jednego JSON na końcu (po obrazach), do wspólnego katalogu
     operations.unshift({ type: 'ensureDir', path: remoteRoot })
     const bulkJson = Buffer.from(JSON.stringify({ articles: bulkArticles }, null, 2))
+    // Dodaj krótkie opóźnienie, aby serwer zapisał pliki graficzne przed JSON
+    operations.push({ type: 'delayMs', ms: Number(process.env.FTP_JSON_DELAY_MS || 1500) })
     operations.push({
       type: 'uploadBuffer',
       remoteDir: remoteRoot,

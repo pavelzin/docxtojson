@@ -9,6 +9,9 @@ export async function uploadToFtp({ host, port = 21, user, password, secure = fa
     for (const op of operations) {
       if (op.type === 'ensureDir') {
         await client.ensureDir(op.path)
+      } else if (op.type === 'delayMs') {
+        const ms = Math.max(0, Number(op.ms || 0))
+        await new Promise((resolve) => setTimeout(resolve, ms))
       } else if (op.type === 'uploadBuffer') {
         await client.ensureDir(op.remoteDir)
         const buf = op.buffer instanceof Uint8Array ? op.buffer : Buffer.from(op.buffer)
