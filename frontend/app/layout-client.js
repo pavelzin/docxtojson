@@ -74,7 +74,7 @@ export default function LayoutClient({ children }) {
                 📄 DOCX Editor
               </h1>
               <span className="ml-3 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
-                v1.1
+                v1.3
               </span>
             </div>
             
