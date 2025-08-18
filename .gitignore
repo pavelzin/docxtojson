@@ -44,3 +44,5 @@ frontend/.env.local
 # Ignore runtime images
 frontend/public/images/*
 !frontend/public/images/.gitkeep
+
+frontend/articles.db
