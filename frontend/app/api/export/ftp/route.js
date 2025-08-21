@@ -215,7 +215,7 @@ export async function POST(request) {
             }
             exportedArticle.images = [
               {
-                url: `${finalName}`,
+                url: `file:///${finalName}`,
                 title: a.title_social || a.title
               }
             ]
