@@ -8,14 +8,14 @@ import { setCredentials, findMonthFolderId, findArticleFolderId, drive, getImage
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const path = searchParams.get('path');
+    const queryPath = searchParams.get('path');
     const name = searchParams.get('name');
 
-    if (!path || !name) {
+    if (!queryPath || !name) {
       return NextResponse.json({ success: false, error: 'Brak wymaganych parametrów (path, name)' }, { status: 400 });
     }
 
-    const parts = path.split('/').filter(Boolean);
+    const parts = queryPath.split('/').filter(Boolean);
     if (parts.length < 2) {
       return NextResponse.json({ success: false, error: 'Nieprawidłowa ścieżka (oczekiwano MONTH/ARTICLE_FOLDER)' }, { status: 400 });
     }
