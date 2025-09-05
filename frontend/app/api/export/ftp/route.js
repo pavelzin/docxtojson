@@ -153,9 +153,9 @@ export async function POST(request) {
       if (a.title_seo) exportedArticle.titleSeo = a.title_seo
       if (a.lead) exportedArticle.lead = a.lead
       if (a.description) exportedArticle.description = a.description
-      if (a.author) exportedArticle.author = a.author
+      exportedArticle.author = a.author || 'red.'
       if (a.photo_author) exportedArticle.photoAuthor = a.photo_author
-      if (a.sources) exportedArticle.sources = JSON.parse(a.sources || '[]')
+      exportedArticle.sources = JSON.parse(a.sources || '["polsatnews.pl"]')
       if (a.categories) exportedArticle.categories = JSON.parse(a.categories || '[]')
       if (a.tags) exportedArticle.tags = JSON.parse(a.tags || '[]')
 
