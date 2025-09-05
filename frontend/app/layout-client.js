@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { Toaster } from 'react-hot-toast';
 import { useAuth } from '../lib/auth-context';
 
-export default function LayoutClient({ children }) {
+export default function LayoutClient({ children, appVersion }) {
   const { user, loading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -73,9 +73,11 @@ export default function LayoutClient({ children }) {
               <h1 className="text-xl font-semibold text-gray-900">
                 📄 DOCX Editor
               </h1>
-              <span className="ml-3 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
-                v1.3
-              </span>
+              {appVersion && (
+                <span className="ml-3 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
+                  v{appVersion}
+                </span>
+              )}
             </div>
             
             <div className="flex items-center space-x-4">
