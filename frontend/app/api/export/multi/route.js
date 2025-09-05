@@ -54,8 +54,9 @@ export async function POST(request) {
         titleSeo: article.title_seo || '',
         lead: article.lead || '',
         description: article.description || '',
-        author: article.author || 'red.',
-        sources: JSON.parse(article.sources || '["polsatnews.pl"]'),
+        // wymuszenie zgodne ze specyfikacją
+        author: 'red.',
+        sources: ['polsatnews.pl'],
         categories: JSON.parse(article.categories || '["Ciekawostki"]'),
         tags: JSON.parse(article.tags || '[]'),
         imageFilename: article.image_filename || null
