@@ -14,8 +14,8 @@ class DocxToJsonConverter {
             apiKey: process.env.OPENAI_API_KEY
         });
         this.defaultConfig = {
-            author: "Redakcja",
-            sources: ["red"],
+            author: "red.",
+            sources: ["polsatnews.pl"],
             categories: ["Ciekawostki"]
         };
     }
