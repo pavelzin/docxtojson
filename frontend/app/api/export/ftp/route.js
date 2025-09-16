@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
+import path from 'path'
+import { promises as fs } from 'fs'
 import { queries } from '@/lib/database'
 import { uploadToFtp } from '@/lib/ftp'
 import { drive, findMonthFolderId, findArticleFolderId, getImageFiles, setCredentials } from '@/lib/google-drive'
@@ -129,10 +131,20 @@ export async function POST(request) {
     const operations = []
     const results = []
 
+    // Przy eksporcie wielu artykułów wymagaj połączenia z Google Drive
+    if (articleIds.length > 1 && !canUseDrive) {
+      return NextResponse.json({ success: false, error: 'Brak połączenia z Google Drive dla eksportu wielu artykułów' }, { status: 400 })
+    }
+
     // Zawsze jeden wspólny folder docelowy (bez daty i bez podkatalogów per artykuł)
     // Używamy ścieżki względnej względem katalogu domyślnego FTP (bez wiodącego '/')
     const baseDir = envConfig.baseDir ? envConfig.baseDir.replace(/^\/+|\/+$/g,'') : ''
     const remoteRoot = baseDir || '.'
+
+    // Lokalny katalog buforujący (przyspiesza multi-eksport: najpierw zapis lokalny, potem jedna sesja FTP)
+    const exportStamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0,19)
+    const localRoot = path.join(process.cwd(), 'tmp', 'ftp-export', exportStamp)
+    await fs.mkdir(localRoot, { recursive: true })
 
     // Zawsze budujemy jeden JSON z listą artykułów
     const bulkArticles = []
@@ -190,12 +202,14 @@ export async function POST(request) {
             const baseName = slugifyFilenameSegment(`${a.article_id}_${titleSlug}`)
             const finalName = makeUniqueName(baseName, ext, usedFilenames)
 
-            // Upload obrazu i wpis do images z nazwą pliku (bez file:///)
+            // Zapisz obraz lokalnie i zaplanuj wysyłkę pliku
+            const localImagePath = path.join(localRoot, finalName)
+            await fs.writeFile(localImagePath, img.buffer)
             operations.push({
-              type: 'uploadBuffer',
+              type: 'uploadFile',
               remoteDir,
               remoteName: finalName,
-              buffer: img.buffer
+              localPath: localImagePath
             })
             // Upewnij się, że URL odpowiada faktycznej nazwie pliku wrzuconego na FTP
             const derivePhotoAuthor = (filename) => {
@@ -235,14 +249,14 @@ export async function POST(request) {
 
     // Wrzut jednego JSON na końcu (po obrazach), do wspólnego katalogu
     operations.unshift({ type: 'ensureDir', path: remoteRoot })
-    const bulkJson = Buffer.from(JSON.stringify({ articles: bulkArticles }, null, 2))
-    // Dodaj krótkie opóźnienie, aby serwer zapisał pliki graficzne przed JSON
-    operations.push({ type: 'delayMs', ms: Number(process.env.FTP_JSON_DELAY_MS || 1500) })
+    // Zapisz JSON lokalnie i wyślij jako plik
+    const localJsonPath = path.join(localRoot, 'articles.json')
+    await fs.writeFile(localJsonPath, Buffer.from(JSON.stringify({ articles: bulkArticles }, null, 2)))
     operations.push({
-      type: 'uploadBuffer',
+      type: 'uploadFile',
       remoteDir: remoteRoot,
       remoteName: 'articles.json',
-      buffer: bulkJson
+      localPath: localJsonPath
     })
 
     if (operations.length === 0) {
@@ -251,6 +265,8 @@ export async function POST(request) {
 
     console.log(`[FTP-EXPORT] FTP operations queued: ${operations.length}`)
     await uploadToFtp(finalFtp, operations)
+    // Porządki lokalne (best-effort)
+    try { await fs.rm(localRoot, { recursive: true, force: true }) } catch {}
     console.log(`[FTP-EXPORT] FTP upload DONE`)
 
     return NextResponse.json({ success: true, uploaded: results })

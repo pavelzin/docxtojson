@@ -1,9 +1,12 @@
 'use client';
 
 import { useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter, usePathname } from 'next/navigation';
 import { Toaster } from 'react-hot-toast';
 import { useAuth } from '../lib/auth-context';
+
+const ToasterDynamic = dynamic(() => import('react-hot-toast').then(m => m.Toaster), { ssr: false });
 
 export default function LayoutClient({ children, appVersion }) {
   const { user, loading, logout } = useAuth();
@@ -34,7 +37,7 @@ export default function LayoutClient({ children, appVersion }) {
     return (
       <>
         {children}
-        <Toaster 
+        <ToasterDynamic 
           position="top-right"
           toastOptions={{
             duration: 4000,
@@ -126,7 +129,7 @@ export default function LayoutClient({ children, appVersion }) {
       </footer>
 
       {/* Toast notifications */}
-      <Toaster 
+      <ToasterDynamic 
         position="top-right"
         toastOptions={{
           duration: 4000,

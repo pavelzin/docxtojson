@@ -118,45 +118,12 @@ export default function MonthPage() {
       toast.error('Nie wybrano żadnych artykułów')
       return
     }
-    try {
-      setExporting(true)
-      const selectedIds = Array.from(selectedArticles)
-      // Najpierw spróbuj użyć ENV po stronie serwera (bez ftpConfig)
-      let response = await fetch('/api/export/ftp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ articleIds: selectedIds })
-      })
-      let data = await response.json()
-      if (!response.ok || !data.success) {
-        if ((data.error || '').includes('Brak konfiguracji FTP')) {
-          const host = window.prompt('FTP host (np. ftp.example.com)')
-          if (!host) throw new Error('Brak hosta FTP')
-          const user = window.prompt('FTP użytkownik')
-          if (!user) throw new Error('Brak użytkownika FTP')
-          const password = window.prompt('FTP hasło')
-          if (!password) throw new Error('Brak hasła FTP')
-          const portStr = window.prompt('FTP port (domyślnie 21). Np. 2121', '21')
-          const port = Number(portStr || '21') || 21
-          const secure = window.confirm('Użyć FTPS (TLS)? OK=tak / Anuluj=nie')
-          response = await fetch('/api/export/ftp', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ articleIds: selectedIds, ftpConfig: { host, port, user, password, secure } })
-          })
-          data = await response.json()
-          if (!response.ok || !data.success) throw new Error(data.error || 'Błąd eksportu na FTP')
-        } else {
-          throw new Error(data.error || 'Błąd eksportu na FTP')
-        }
-      }
-      toast.success(`Wysłano ${data.uploaded.length} artykułów na FTP`)
-      clearSelection()
-    } catch (e) {
-      toast.error(e.message)
-    } finally {
-      setExporting(false)
-    }
+
+    // Przekieruj do widoku eksportu z wybranymi artykułami
+    const selectedIds = Array.from(selectedArticles)
+    const params = new URLSearchParams()
+    params.set('articleIds', selectedIds.join(','))
+    window.location.href = `/export?${params.toString()}`
   }
 
   if (loading) {
@@ -241,13 +208,14 @@ export default function MonthPage() {
                 <button
                   onClick={exportSelected}
                   disabled={exporting}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
                   {exporting ? 'Eksportuję...' : 'Eksportuj wybrane'}
                 </button>
                 <button
                   onClick={exportSelectedToFtp}
                   disabled={exporting}
-                  className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
                 >
                   {exporting ? 'Wysyłam...' : 'Wyślij na FTP'}
                 </button>
