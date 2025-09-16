@@ -35,6 +35,20 @@ function makeUniqueName(baseWithoutExt, ext, usedNames) {
   return candidate
 }
 
+// Parser photo author z oryginalnej nazwy pliku (przed sanityzacją)
+function extractPhotoAuthorFromFilename(filename) {
+  try {
+    if (!filename || typeof filename !== 'string') return null
+    const base = filename.split('/').pop()
+    const withoutExt = base.replace(/\.[^.]+$/, '')
+    const segments = withoutExt.split('_')
+    const candidate = segments[segments.length - 1].trim()
+    return candidate || null
+  } catch {
+    return null
+  }
+}
+
 async function downloadLargestTopImage(drivePath) {
   if (!drivePath) return null
   const [monthName, ...rest] = drivePath.split('/')
@@ -57,22 +71,44 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'Brak artykułów do przygotowania' }, { status: 400 })
     }
 
-    // Google Drive auth (wymagane przy obrazach)
+    // Google Drive auth (WYMAGANE dla eksportu FTP)
     let canUseDrive = false
+    console.log('🔍 FTP-PREPARE: Sprawdzam autoryzację Google Drive...')
+    
     try {
       const cookieStore = cookies()
       const accessToken = cookieStore.get('google_access_token')?.value
       const refreshToken = cookieStore.get('google_refresh_token')?.value
+      console.log('🔍 Cookies:', { hasAccess: !!accessToken, hasRefresh: !!refreshToken })
       if (accessToken) {
         setCredentials({ access_token: accessToken, refresh_token: refreshToken })
         canUseDrive = true
+        console.log('✅ Autoryzacja z cookies')
       }
-    } catch {}
+    } catch (e) {
+      console.log('❌ Błąd cookies:', e.message)
+    }
+    
     if (!canUseDrive && process.env.GDRIVE_ACCESS_TOKEN && process.env.GDRIVE_REFRESH_TOKEN) {
       try {
         setCredentials({ access_token: process.env.GDRIVE_ACCESS_TOKEN, refresh_token: process.env.GDRIVE_REFRESH_TOKEN })
         canUseDrive = true
-      } catch {}
+        console.log('✅ Autoryzacja z ENV')
+      } catch (e) {
+        console.log('❌ Błąd ENV:', e.message)
+      }
+    }
+    
+    console.log('🔍 canUseDrive:', canUseDrive)
+    
+    // BRAK AUTORYZACJI = BRAK EKSPORTU
+    if (!canUseDrive) {
+      console.log('❌ BRAK AUTORYZACJI - zwracam błąd')
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Brak autoryzacji Google Drive. Musisz się zalogować aby eksportować artykuły z obrazami.',
+        needsAuth: true 
+      }, { status: 401 })
     }
 
     // Utwórz katalog roboczy
@@ -103,11 +139,18 @@ export async function POST(request) {
       if (a.categories) exportedArticle.categories = JSON.parse(a.categories || '[]')
       if (a.tags) exportedArticle.tags = JSON.parse(a.tags || '[]')
 
-      // Obraz (opcjonalnie)
-      if (canUseDrive) {
+      // Obraz z Google Drive (zawsze wymagany)
+      {
         try {
           const img = await downloadLargestTopImage(a.drive_path)
           if (img) {
+            // 🎯 NAJPIERW parsuj photoAuthor z oryginalnej nazwy pliku (priorytet dla Drive)
+            const photoAuthor = extractPhotoAuthorFromFilename(img.name) || a.photo_author
+            if (photoAuthor) {
+              exportedArticle.photoAuthor = photoAuthor
+            }
+            
+            // Potem sanityzuj nazwę dla lokalnego pliku
             const ext = getFileExtension(img.name) || 'jpg'
             const titleSlug = slugifyFilenameSegment(a.title).replace(/\.+/g, '-')
             const baseName = slugifyFilenameSegment(`${a.article_id}_${titleSlug}`)

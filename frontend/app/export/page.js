@@ -35,7 +35,15 @@ export default function ExportJobsPage() {
         body: JSON.stringify({ articleIds: ids })
       })
       const data = await res.json()
-      if (!res.ok || !data.success) throw new Error(data.error || 'Błąd przygotowania')
+      if (!res.ok || !data.success) {
+        // Specjalna obsługa błędu autoryzacji
+        if (data.needsAuth) {
+          setError(`${data.error} Przekieruj się do głównej strony i zaloguj do Google Drive.`)
+        } else {
+          throw new Error(data.error || 'Błąd przygotowania')
+        }
+        return
+      }
       setJob(data)
     } catch (e) {
       setError(e.message)
