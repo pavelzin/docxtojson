@@ -46,3 +46,7 @@ frontend/public/images/*
 !frontend/public/images/.gitkeep
 
 frontend/articles.db
+
+# Temporary FTP export files
+frontend/tmp/
+tmp/
