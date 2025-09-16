@@ -3,8 +3,7 @@ import path from 'path'
 import { promises as fs } from 'fs'
 import { uploadToFtp } from '@/lib/ftp'
 
-// TEMP: Bypass auth for testing
-const BYPASS_AUTH = true
+// Removed BYPASS_AUTH - proper auth required
 
 export async function POST(request) {
   try {
@@ -15,18 +14,18 @@ export async function POST(request) {
     }
     console.log(`📦 Processing job: ${jobId}`)
 
-    // Konfiguracja FTP z ENV lub body (TEMP: local test FTP)
+    // Konfiguracja FTP z ENV lub body
     const envConfig = {
-      host: '127.0.0.1',
-      port: Number(process.env.FTP_PORT || '2122') || 2122,
-      user: process.env.FTP_USER || 'testuser',
-      password: process.env.FTP_PASSWORD || 'test123',
+      host: process.env.FTP_HOST || '127.0.0.1',
+      port: Number(process.env.FTP_PORT || '21') || 21,
+      user: process.env.FTP_USER || 'anonymous',
+      password: process.env.FTP_PASSWORD || '',
       secure: String(process.env.FTP_SECURE || '').toLowerCase() === 'true' || process.env.FTP_SECURE === '1',
       baseDir: process.env.FTP_BASE_DIR || ''
     }
     const finalFtp = {
       host: ftpConfig?.host || envConfig.host,
-      port: Number(ftpConfig?.port || envConfig.port) || 2122,
+      port: Number(ftpConfig?.port || envConfig.port) || 21,
       user: ftpConfig?.user || envConfig.user,
       password: ftpConfig?.password || envConfig.password,
       secure: typeof ftpConfig?.secure === 'boolean' ? ftpConfig.secure : envConfig.secure || false
