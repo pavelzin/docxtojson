@@ -50,17 +50,41 @@ function extractPhotoAuthorFromFilename(filename) {
 }
 
 async function downloadLargestTopImage(drivePath) {
-  if (!drivePath) return null
+  console.log('🖼️ Próba pobrania obrazu dla:', drivePath)
+  if (!drivePath) {
+    console.log('❌ Brak drivePath')
+    return null
+  }
   const [monthName, ...rest] = drivePath.split('/')
   const articleName = rest.join('/')
+  console.log('🔍 Szukam miesiąca:', monthName)
+  
   const monthId = await findMonthFolderId(monthName)
-  if (!monthId) return null
+  if (!monthId) {
+    console.log('❌ Nie znaleziono miesiąca:', monthName)
+    return null
+  }
+  console.log('✅ Znaleziono miesiąc, szukam folder artykułu:', articleName)
+  
   const articleFolderId = await findArticleFolderId(monthId, articleName)
-  if (!articleFolderId) return null
+  if (!articleFolderId) {
+    console.log('❌ Nie znaleziono folderu artykułu:', articleName)
+    return null
+  }
+  console.log('✅ Znaleziono folder, pobieranie obrazów...')
+  
   const topImages = await getImageFiles(articleFolderId)
-  if (!topImages || topImages.length === 0) return null
+  if (!topImages || topImages.length === 0) {
+    console.log('❌ Brak obrazów w folderze')
+    return null
+  }
+  console.log('✅ Znaleziono', topImages.length, 'obrazów, pobieranie największego...')
+  
   const best = topImages.reduce((a, b) => (b.size > a.size ? b : a))
+  console.log('✅ Pobieranie obrazu:', best.name)
+  
   const media = await drive.files.get({ fileId: best.id, alt: 'media' }, { responseType: 'arraybuffer' })
+  console.log('✅ Obraz pobrany!')
   return { buffer: Buffer.from(media.data), name: best.name }
 }
 
@@ -162,6 +186,10 @@ export async function POST(request) {
           }
         } catch (e) {
           console.warn('[FTP-PREPARE] Image download failed:', e?.message || e)
+          // Jeśli błąd sieci - kontynuuj bez obrazu zamiast crashować
+          if (e?.code === 'ENOTFOUND' || e?.message?.includes('googleapis.com')) {
+            console.log('🌐 Błąd sieci - pomijam obraz dla artykułu:', a.article_id)
+          }
         }
       }
 

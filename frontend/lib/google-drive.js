@@ -201,108 +201,6 @@ export async function getDocxFiles(articleFolderId) {
   }
 }
 
-// Funkcja do pobierania plików graficznych w folderze artykułu
-export async function getImageFiles(articleFolderId) {
-  try {
-    const response = await drive.files.list({
-      q: `'${articleFolderId}' in parents and mimeType contains 'image/' and trashed=false`,
-      fields: 'files(id, name, size, mimeType, modifiedTime)',
-      orderBy: 'name'
-    });
-
-    // Akceptowalne rozszerzenia
-    const allowedExt = ['.jpg', '.jpeg', '.png', '.webp'];
-
-    return (response.data.files || [])
-      .filter(file => {
-        const lower = (file.name || '').toLowerCase();
-        return allowedExt.some(ext => lower.endsWith(ext));
-      })
-      .map(file => ({
-        id: file.id,
-        name: file.name,
-        size: parseInt(file.size) || 0,
-        modifiedTime: file.modifiedTime,
-        mimeType: file.mimeType
-      }));
-  } catch (error) {
-    console.error('Błąd pobierania plików graficznych:', error);
-    throw error;
-  }
-}
-
-// Rekurencyjne pobieranie plików graficznych (wraz z podfolderami)
-export async function getImageFilesRecursive(rootFolderId, maxDepth = 3) {
-  try {
-    const allowedExt = ['.jpg', '.jpeg', '.png', '.webp'];
-    const results = [];
-    const queue = [{ id: rootFolderId, depth: 0 }];
-
-    while (queue.length > 0) {
-      const { id: folderId, depth } = queue.shift();
-
-      // Pobierz wszystkie elementy w folderze
-      const response = await drive.files.list({
-        q: `'${folderId}' in parents and trashed=false`,
-        fields: 'files(id, name, size, mimeType, modifiedTime)'
-      });
-
-      for (const file of response.data.files || []) {
-        if (file.mimeType === 'application/vnd.google-apps.folder') {
-          if (depth < maxDepth) {
-            queue.push({ id: file.id, depth: depth + 1 });
-          }
-          continue;
-        }
-        const lower = (file.name || '').toLowerCase();
-        const isAllowed = allowedExt.some(ext => lower.endsWith(ext)) || (file.mimeType || '').startsWith('image/');
-        if (isAllowed) {
-          results.push({
-            id: file.id,
-            name: file.name,
-            size: parseInt(file.size) || 0,
-            modifiedTime: file.modifiedTime,
-            mimeType: file.mimeType
-          });
-        }
-      }
-    }
-
-    return results;
-  } catch (error) {
-    console.error('Błąd rekurencyjnego pobierania plików graficznych:', error);
-    throw error;
-  }
-}
-
-export async function findBestArticleImageDeep(articleFolderId) {
-  const images = await getImageFilesRecursive(articleFolderId);
-  if (!images || images.length === 0) return null;
-  return images.reduce((best, current) => (current.size > best.size ? current : best), images[0]);
-}
-
-// Znajdź największy (po rozmiarze) plik graficzny w folderze artykułu
-export async function findBestArticleImage(articleFolderId) {
-  const images = await getImageFiles(articleFolderId);
-  if (!images || images.length === 0) return null;
-  return images.reduce((best, current) => (current.size > best.size ? current : best), images[0]);
-}
-
-// Pobierz ID folderu-rodzica dla pliku
-export async function getFileParentId(fileId) {
-  try {
-    const res = await drive.files.get({
-      fileId,
-      fields: 'id, name, parents'
-    });
-    const parents = res.data.parents || [];
-    return parents.length > 0 ? parents[0] : null;
-  } catch (error) {
-    console.error('Błąd pobierania rodzica pliku:', error);
-    return null;
-  }
-}
-
 // Funkcja pomocnicza do liczenia plików w folderze
 async function countFilesInFolder(folderId) {
   try {
@@ -556,6 +454,23 @@ export async function getFilesFromSpecificMonth(monthName) {
     return await getAllDocxFilesInMonth(targetMonth.id, monthName);
   } catch (error) {
     console.error('Błąd pobierania plików z konkretnego miesiąca:', error);
+    throw error;
+  }
+}
+
+// Funkcja do pobierania plików graficznych w folderze artykułu
+export async function getImageFiles(articleFolderId) {
+  try {
+    // Pobierz tylko obrazy
+    const response = await drive.files.list({
+      q: `'${articleFolderId}' in parents and mimeType contains 'image/' and trashed=false`,
+      fields: 'files(id, name, size, mimeType, modifiedTime)',
+      orderBy: 'name'
+    });
+
+    return response.data.files;
+  } catch (error) {
+    console.error('Błąd pobierania plików graficznych:', error);
     throw error;
   }
 }
