@@ -200,10 +200,17 @@ export async function POST(request) {
     await fs.writeFile(localJsonPath, Buffer.from(JSON.stringify({ articles: bulkArticles }, null, 2)))
     savedFiles.push('articles.json')
 
-    return NextResponse.json({ 
-      success: true, 
-      jobId, 
-      files: savedFiles, 
+    console.log('🎯 FTP-PREPARE FINISHED - Zwracam response:', {
+      success: true,
+      jobId,
+      filesCount: savedFiles.length,
+      articlesCount: bulkArticles.length
+    })
+
+    return NextResponse.json({
+      success: true,
+      jobId,
+      files: savedFiles,
       count: bulkArticles.length,
       articles: bulkArticles.map(a => ({
         articleId: a.articleId,
