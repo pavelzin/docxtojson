@@ -200,30 +200,35 @@ export async function POST(request) {
     await fs.writeFile(localJsonPath, Buffer.from(JSON.stringify({ articles: bulkArticles }, null, 2)))
     savedFiles.push('articles.json')
 
+    // MINIMALNY response - tylko to co potrzebne
     const responseData = {
       success: true,
       jobId,
       files: savedFiles,
       count: bulkArticles.length,
+      // Nie wysyłamy całych articles - za duży response może być problemem
       articles: bulkArticles.map(a => ({
         articleId: a.articleId,
-        title: a.title,
-        imageUrl: a.images?.[0]?.url || null,
-        imageTitle: a.images?.[0]?.title || null,
-        author: a.author,
+        title: a.title.substring(0, 50) + (a.title.length > 50 ? '...' : ''), // Skróć tytuły
         photoAuthor: a.photoAuthor || null
       }))
     }
 
     console.log('🎯 FTP-PREPARE FINISHED - Response size:', JSON.stringify(responseData).length, 'bytes')
+    console.log('🎯 Sending response to frontend...')
 
-    return new Response(JSON.stringify(responseData), {
+    const response = new Response(JSON.stringify(responseData), {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
         'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Keep-Alive': 'timeout=300',
       },
     })
+
+    console.log('🎯 Response created, returning...')
+    return response
   } catch (e) {
     return NextResponse.json({ success: false, error: e.message || 'Błąd przygotowania eksportu' }, { status: 500 })
   }
