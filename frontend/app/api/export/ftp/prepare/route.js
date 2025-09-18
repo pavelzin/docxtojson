@@ -200,14 +200,7 @@ export async function POST(request) {
     await fs.writeFile(localJsonPath, Buffer.from(JSON.stringify({ articles: bulkArticles }, null, 2)))
     savedFiles.push('articles.json')
 
-    console.log('🎯 FTP-PREPARE FINISHED - Zwracam response:', {
-      success: true,
-      jobId,
-      filesCount: savedFiles.length,
-      articlesCount: bulkArticles.length
-    })
-
-    return NextResponse.json({
+    const responseData = {
       success: true,
       jobId,
       files: savedFiles,
@@ -220,6 +213,16 @@ export async function POST(request) {
         author: a.author,
         photoAuthor: a.photoAuthor || null
       }))
+    }
+
+    console.log('🎯 FTP-PREPARE FINISHED - Response size:', JSON.stringify(responseData).length, 'bytes')
+
+    return new Response(JSON.stringify(responseData), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache',
+      },
     })
   } catch (e) {
     return NextResponse.json({ success: false, error: e.message || 'Błąd przygotowania eksportu' }, { status: 500 })

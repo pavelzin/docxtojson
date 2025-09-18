@@ -4,9 +4,17 @@ const nextConfig = {
     config.externals.push('@node-rs/argon2', '@node-rs/bcrypt')
     return config
   },
-  // Zwiększ timeout dla API routes (domyślnie 10s)
-  experimental: {
-    serverTimeout: 300000, // 5 minut
+  // Zwiększ timeout dla API routes
+  api: {
+    responseLimit: false,
+    externalResolver: true,
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
+  // Alternatywne ustawienie timeoutu
+  serverRuntimeConfig: {
+    maxDuration: 300, // 5 minut w sekundach
   }
 }
 
