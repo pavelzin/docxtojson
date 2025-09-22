@@ -29,11 +29,17 @@ export async function GET(request) {
       const fileBuffer = await fs.readFile(localFilePath);
       const ext = (name.split('.').pop() || '').toLowerCase();
       const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+      // Dodaj timestamp do cache busting
+      const fileStats = await fs.stat(localFilePath);
+      const lastModified = fileStats.mtime.toISOString();
+      
       return new NextResponse(fileBuffer, {
         status: 200,
         headers: {
           'Content-Type': mime,
-          'Cache-Control': 'public, max-age=31536000, immutable',
+          'Cache-Control': 'public, max-age=3600', // 1 godzina zamiast roku
+          'Last-Modified': lastModified,
+          'ETag': `"${Buffer.from(lastModified).toString('base64')}"`,
           'Content-Disposition': `inline; filename="${encodeURIComponent(name)}"`
         }
       });
@@ -90,7 +96,7 @@ export async function GET(request) {
       status: 200,
       headers: {
         'Content-Type': imageFile.mimeType || 'image/jpeg',
-        'Cache-Control': 'public, max-age=31536000, immutable',
+        'Cache-Control': 'public, max-age=3600', // 1 godzina
         'Content-Disposition': `inline; filename="${encodeURIComponent(imageFile.name)}"`
       }
     });

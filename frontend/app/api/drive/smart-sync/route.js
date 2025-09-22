@@ -170,7 +170,22 @@ export async function POST(request) {
                 const rel = String(file.filePath || article.drive_path || '').split('/').filter(Boolean);
                 const dir = path.join(process.cwd(), 'public', 'images', ...rel);
                 await fs.mkdir(dir, { recursive: true });
+                
+                // USUŃ STARE OBRAZKI z tego katalogu (cache busting)
+                try {
+                  const files = await fs.readdir(dir);
+                  for (const oldFile of files) {
+                    if (oldFile !== bestImage.name && /\.(jpg|jpeg|png|webp|gif)$/i.test(oldFile)) {
+                      await fs.unlink(path.join(dir, oldFile));
+                      console.log(`🗑️ Usunięto stary obrazek: ${oldFile}`);
+                    }
+                  }
+                } catch (e) {
+                  console.warn(`[smart-sync] Nie udało się usunąć starych obrazków: ${e.message}`);
+                }
+                
                 await fs.writeFile(path.join(dir, bestImage.name), buffer);
+                console.log(`💾 Zapisano nowy obrazek: ${bestImage.name}`);
               } catch (e) {
                 console.warn(`[smart-sync] Nie udało się zapisać obrazu lokalnie: ${e.message}`);
               }
