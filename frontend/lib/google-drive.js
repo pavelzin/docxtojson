@@ -475,4 +475,11 @@ export async function getImageFiles(articleFolderId) {
   }
 }
 
+// Znajdź największy (po rozmiarze) plik graficzny w folderze artykułu
+export async function findBestArticleImage(articleFolderId) {
+  const images = await getImageFiles(articleFolderId);
+  if (!images || images.length === 0) return null;
+  return images.reduce((best, current) => (current.size > best.size ? current : best), images[0]);
+}
+
 export { oauth2Client, drive }; 
