@@ -170,6 +170,7 @@ export async function POST(request) {
             }
             if (bestImage) {
               article.imageFilename = bestImage.name;
+              article.imageModifiedTime = bestImage.modifiedTime;
               console.log(`🖼️ [smart-sync] Found image for ${file.fullPath}: ${bestImage.name} (${bestImage.size} B)`);
               // Pobierz obraz i zapisz lokalnie
               try {
@@ -214,13 +215,24 @@ export async function POST(request) {
         // Jeśli artykuł już istnieje (po tytule), nie wstawiaj duplikatu, ale uzupełnij image_filename jeśli brak
         const existing = await queries.getArticleByTitle(article.title);
         if (existing) {
-          // Zawsze aktualizuj obrazek jeśli znaleziono nowy (nawet jeśli był stary)
-          if (article.imageFilename && existing.image_filename !== article.imageFilename) {
-            await queries.setArticleImageFilename(existing.article_id, article.imageFilename);
-            console.log(`🖼️ Zaktualizowano obraz dla: ${article.title} (${existing.image_filename} → ${article.imageFilename})`);
-            await queries.addSyncLog(syncId, 'success', `🖼️ Zaktualizowano obraz: ${existing.image_filename} → ${article.imageFilename}`, file.fullPath);
+          // Sprawdź czy obrazek wymaga aktualizacji
+          const needsImageUpdate = article.imageFilename && (
+            existing.image_filename !== article.imageFilename || // Inna nazwa
+            !existing.image_modified_time || // Brak zapisanej daty
+            (article.imageModifiedTime && new Date(article.imageModifiedTime) > new Date(existing.image_modified_time)) // Nowszy plik
+          );
+          
+          if (needsImageUpdate) {
+            await queries.setArticleImageFilename(existing.article_id, article.imageFilename, article.imageModifiedTime);
+            if (existing.image_filename !== article.imageFilename) {
+              console.log(`🖼️ Zaktualizowano obraz dla: ${article.title} (${existing.image_filename} → ${article.imageFilename})`);
+              await queries.addSyncLog(syncId, 'success', `🖼️ Zaktualizowano obraz: ${existing.image_filename} → ${article.imageFilename}`, file.fullPath);
+            } else {
+              console.log(`🖼️ Zaktualizowano obraz dla: ${article.title} (ten sam plik, nowsza wersja)`);
+              await queries.addSyncLog(syncId, 'success', `🖼️ Zaktualizowano obraz (nowsza wersja): ${article.imageFilename}`, file.fullPath);
+            }
           } else if (!existing.image_filename && article.imageFilename) {
-            await queries.setArticleImageFilename(existing.article_id, article.imageFilename);
+            await queries.setArticleImageFilename(existing.article_id, article.imageFilename, article.imageModifiedTime);
             console.log(`🖼️ Uzupełniono obraz dla: ${article.title}`);
             await queries.addSyncLog(syncId, 'info', `🖼️ Uzupełniono obraz dla: ${article.title}`, file.fullPath);
           } else {
@@ -231,13 +243,24 @@ export async function POST(request) {
           // Jeśli nie znaleziono po tytule – spróbuj po ścieżce i oryginalnej nazwie pliku
           const existingByPath = await queries.getArticleByPath(article.drive_path, article.original_filename);
           if (existingByPath) {
-            // Zawsze aktualizuj obrazek jeśli znaleziono nowy
-            if (article.imageFilename && existingByPath.image_filename !== article.imageFilename) {
-              await queries.setArticleImageFilename(existingByPath.article_id, article.imageFilename);
-              console.log(`🖼️ Zaktualizowano obraz (po ścieżce) dla: ${existingByPath.title} (${existingByPath.image_filename} → ${article.imageFilename})`);
-              await queries.addSyncLog(syncId, 'success', `🖼️ Zaktualizowano obraz: ${existingByPath.image_filename} → ${article.imageFilename}`, file.fullPath);
+            // Sprawdź czy obrazek wymaga aktualizacji
+            const needsImageUpdate = article.imageFilename && (
+              existingByPath.image_filename !== article.imageFilename || // Inna nazwa
+              !existingByPath.image_modified_time || // Brak zapisanej daty
+              (article.imageModifiedTime && new Date(article.imageModifiedTime) > new Date(existingByPath.image_modified_time)) // Nowszy plik
+            );
+            
+            if (needsImageUpdate) {
+              await queries.setArticleImageFilename(existingByPath.article_id, article.imageFilename, article.imageModifiedTime);
+              if (existingByPath.image_filename !== article.imageFilename) {
+                console.log(`🖼️ Zaktualizowano obraz (po ścieżce) dla: ${existingByPath.title} (${existingByPath.image_filename} → ${article.imageFilename})`);
+                await queries.addSyncLog(syncId, 'success', `🖼️ Zaktualizowano obraz: ${existingByPath.image_filename} → ${article.imageFilename}`, file.fullPath);
+              } else {
+                console.log(`🖼️ Zaktualizowano obraz (po ścieżce) dla: ${existingByPath.title} (ten sam plik, nowsza wersja)`);
+                await queries.addSyncLog(syncId, 'success', `🖼️ Zaktualizowano obraz (nowsza wersja): ${article.imageFilename}`, file.fullPath);
+              }
             } else if (!existingByPath.image_filename && article.imageFilename) {
-              await queries.setArticleImageFilename(existingByPath.article_id, article.imageFilename);
+              await queries.setArticleImageFilename(existingByPath.article_id, article.imageFilename, article.imageModifiedTime);
               console.log(`🖼️ Uzupełniono obraz (po ścieżce) dla: ${existingByPath.title}`);
               await queries.addSyncLog(syncId, 'info', `🖼️ Uzupełniono obraz (po ścieżce) dla: ${existingByPath.title}`, file.fullPath);
             } else {
@@ -268,7 +291,7 @@ export async function POST(request) {
 
           // Jeśli znaleziono zdjęcie – zapisz je do bazy
           if (article.imageFilename) {
-            await queries.setArticleImageFilename(article.articleId, article.imageFilename);
+            await queries.setArticleImageFilename(article.articleId, article.imageFilename, article.imageModifiedTime);
           }
 
           // Oznacz plik jako przetworzony

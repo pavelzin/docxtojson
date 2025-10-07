@@ -105,6 +105,14 @@ const initializeDatabase = async () => {
       // Kolumna już istnieje
     }
 
+    // Kolumna na datę modyfikacji obrazka z Drive
+    try {
+      await dbRun(`ALTER TABLE articles ADD COLUMN image_modified_time TEXT`);
+      console.log('Dodano kolumnę image_modified_time');
+    } catch (e) {
+      // Kolumna już istnieje
+    }
+
     // Tabela dla śledzenia synchronizacji Google Drive
     await dbRun(`
       CREATE TABLE IF NOT EXISTS sync_log (
@@ -287,15 +295,16 @@ const articleQueries = {
   },
 
   // Ustaw nazwę pliku obrazu powiązaną z artykułem
-  setArticleImageFilename: async (articleId, imageFilename) => {
+  setArticleImageFilename: async (articleId, imageFilename, imageModifiedTime = null) => {
     const photoAuthor = extractPhotoAuthorFromFilename(imageFilename);
     return await dbRun(`
       UPDATE articles SET 
         image_filename = ?, 
         photo_author = ?,
+        image_modified_time = ?,
         updated_at = CURRENT_TIMESTAMP
       WHERE article_id = ?
-    `, [imageFilename, photoAuthor, articleId]);
+    `, [imageFilename, photoAuthor, imageModifiedTime, articleId]);
   },
 
   // Wstaw informację o polu AI
