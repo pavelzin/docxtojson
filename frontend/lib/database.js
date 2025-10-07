@@ -3,7 +3,9 @@ const path = require('path');
 const { promisify } = require('util');
 
 // Inicjalizacja bazy danych
-const dbPath = path.join(process.cwd(), 'articles.db');
+// Użyj __dirname zamiast process.cwd() - zawsze wskazuje na folder lib/
+const dbPath = path.join(__dirname, '..', 'articles.db');
+console.log('🗄️ Ścieżka do bazy danych:', dbPath);
 const db = new sqlite3.Database(dbPath);
 
 // Promisify metod SQLite3 - POPRAWKA dla lastID
