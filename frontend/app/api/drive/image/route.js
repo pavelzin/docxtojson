@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import path from 'path';
 import { promises as fs } from 'fs';
-import { setCredentials, findMonthFolderId, findArticleFolderId, drive, getImageFilesRecursive } from '@/lib/google-drive';
+import { setCredentials, findMonthFolderId, findArticleFolderId, drive, getImageFiles } from '@/lib/google-drive';
 
 // GET /api/drive/image?path=MONTH/ARTICLE_NAME&name=FILENAME.jpg
 export async function GET(request) {
@@ -73,7 +73,7 @@ export async function GET(request) {
 
     // Jeśli nie znaleziono – poszukaj rekurencyjnie w podfolderach
     if (!imageFile) {
-      const allImages = await getImageFilesRecursive(articleFolderId);
+      const allImages = await getImageFiles(articleFolderId);
       const lowerTarget = name.toLowerCase();
       const found = allImages.find(f => (f.name || '').toLowerCase() === lowerTarget);
       if (found) {

@@ -214,9 +214,14 @@ export async function POST(request) {
         // Jeśli artykuł już istnieje (po tytule), nie wstawiaj duplikatu, ale uzupełnij image_filename jeśli brak
         const existing = await queries.getArticleByTitle(article.title);
         if (existing) {
-          if (!existing.image_filename && article.imageFilename) {
+          // Zawsze aktualizuj obrazek jeśli znaleziono nowy (nawet jeśli był stary)
+          if (article.imageFilename && existing.image_filename !== article.imageFilename) {
             await queries.setArticleImageFilename(existing.article_id, article.imageFilename);
-            console.log(`🖼️ Uzupełniono obraz dla istniejącego artykułu: ${article.title}`);
+            console.log(`🖼️ Zaktualizowano obraz dla: ${article.title} (${existing.image_filename} → ${article.imageFilename})`);
+            await queries.addSyncLog(syncId, 'success', `🖼️ Zaktualizowano obraz: ${existing.image_filename} → ${article.imageFilename}`, file.fullPath);
+          } else if (!existing.image_filename && article.imageFilename) {
+            await queries.setArticleImageFilename(existing.article_id, article.imageFilename);
+            console.log(`🖼️ Uzupełniono obraz dla: ${article.title}`);
             await queries.addSyncLog(syncId, 'info', `🖼️ Uzupełniono obraz dla: ${article.title}`, file.fullPath);
           } else {
             await queries.addSyncLog(syncId, 'info', `⏭️ Pominięto (już istnieje): ${article.title}`, file.fullPath);
@@ -226,7 +231,12 @@ export async function POST(request) {
           // Jeśli nie znaleziono po tytule – spróbuj po ścieżce i oryginalnej nazwie pliku
           const existingByPath = await queries.getArticleByPath(article.drive_path, article.original_filename);
           if (existingByPath) {
-            if (!existingByPath.image_filename && article.imageFilename) {
+            // Zawsze aktualizuj obrazek jeśli znaleziono nowy
+            if (article.imageFilename && existingByPath.image_filename !== article.imageFilename) {
+              await queries.setArticleImageFilename(existingByPath.article_id, article.imageFilename);
+              console.log(`🖼️ Zaktualizowano obraz (po ścieżce) dla: ${existingByPath.title} (${existingByPath.image_filename} → ${article.imageFilename})`);
+              await queries.addSyncLog(syncId, 'success', `🖼️ Zaktualizowano obraz: ${existingByPath.image_filename} → ${article.imageFilename}`, file.fullPath);
+            } else if (!existingByPath.image_filename && article.imageFilename) {
               await queries.setArticleImageFilename(existingByPath.article_id, article.imageFilename);
               console.log(`🖼️ Uzupełniono obraz (po ścieżce) dla: ${existingByPath.title}`);
               await queries.addSyncLog(syncId, 'info', `🖼️ Uzupełniono obraz (po ścieżce) dla: ${existingByPath.title}`, file.fullPath);
