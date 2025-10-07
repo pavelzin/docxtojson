@@ -3,8 +3,8 @@ const path = require('path');
 const { promisify } = require('util');
 
 // Inicjalizacja bazy danych
-// Użyj __dirname zamiast process.cwd() - zawsze wskazuje na folder lib/
-const dbPath = path.join(__dirname, '..', 'articles.db');
+// Użyj zmiennej środowiskowej lub domyślnej ścieżki bezwzględnej
+const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), 'frontend', 'articles.db');
 console.log('🗄️ Ścieżka do bazy danych:', dbPath);
 const db = new sqlite3.Database(dbPath);
 
