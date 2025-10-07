@@ -122,6 +122,19 @@ const initializeDatabase = async () => {
       )
     `);
 
+    // Tabela dla szczegółowych logów synchronizacji (dla UI)
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS sync_detailed_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sync_id INTEGER NOT NULL,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        log_level TEXT NOT NULL, -- 'info', 'success', 'warning', 'error'
+        message TEXT NOT NULL,
+        file_path TEXT,
+        FOREIGN KEY (sync_id) REFERENCES sync_log(id)
+      )
+    `);
+
     // Tabela dla metadanych plików Drive (cache)
     await dbRun(`
       CREATE TABLE IF NOT EXISTS drive_files_cache (
@@ -336,6 +349,48 @@ const articleQueries = {
         error_message = ?
       WHERE id = ?
     `, [status, processed, imported, skipped, errorMessage, syncId]);
+  },
+
+  // Dodaj szczegółowy log synchronizacji
+  addSyncLog: async (syncId, level, message, filePath = null) => {
+    return await dbRun(`
+      INSERT INTO sync_detailed_logs (sync_id, log_level, message, file_path)
+      VALUES (?, ?, ?, ?)
+    `, [syncId, level, message, filePath]);
+  },
+
+  // Pobierz szczegółowe logi synchronizacji
+  getSyncLogs: async (syncId = null, limit = 500) => {
+    if (syncId) {
+      return await dbAll(`
+        SELECT * FROM sync_detailed_logs
+        WHERE sync_id = ?
+        ORDER BY timestamp DESC
+        LIMIT ?
+      `, [syncId, limit]);
+    } else {
+      return await dbAll(`
+        SELECT sdl.*, sl.sync_type, sl.target_month, sl.started_at as sync_started
+        FROM sync_detailed_logs sdl
+        JOIN sync_log sl ON sdl.sync_id = sl.id
+        ORDER BY sdl.timestamp DESC
+        LIMIT ?
+      `, [limit]);
+    }
+  },
+
+  // Pobierz wszystkie synchronizacje z liczbą logów
+  getSyncListWithLogs: async (limit = 20) => {
+    return await dbAll(`
+      SELECT 
+        sl.*,
+        COUNT(sdl.id) as log_count
+      FROM sync_log sl
+      LEFT JOIN sync_detailed_logs sdl ON sl.id = sdl.sync_id
+      GROUP BY sl.id
+      ORDER BY sl.started_at DESC
+      LIMIT ?
+    `, [limit]);
   },
 
   // Pobierz ostatnią udaną synchronizację

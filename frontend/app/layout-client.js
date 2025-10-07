@@ -92,6 +92,12 @@ export default function LayoutClient({ children, appVersion }) {
                   Artykuły
                 </a>
                 <a 
+                  href="/sync-logs" 
+                  className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                >
+                  📝 Logi Sync
+                </a>
+                <a 
                   href="/import" 
                   className="bg-primary-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-primary-700"
                 >

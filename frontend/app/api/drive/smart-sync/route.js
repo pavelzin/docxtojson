@@ -76,6 +76,7 @@ export async function POST(request) {
     switch (syncType) {
       case 'incremental':
         console.log(`🔄 Synchronizacja inkrementalna (ostatnie ${limitMonths} miesiące)`);
+        await queries.addSyncLog(syncId, 'info', `🔄 Synchronizacja inkrementalna (ostatnie ${limitMonths} miesiące)`);
         
         // Pobierz datę ostatniej udanej synchronizacji
         const lastSync = await queries.getLastSuccessfulSync('incremental');
@@ -83,8 +84,10 @@ export async function POST(request) {
         
         if (sinceDate) {
           console.log(`📅 Szukam plików nowszych niż: ${sinceDate}`);
+          await queries.addSyncLog(syncId, 'info', `📅 Szukam plików nowszych niż: ${sinceDate}`);
         } else {
           console.log(`📅 Pierwsza synchronizacja - pobieram ostatnie ${limitMonths} miesiące`);
+          await queries.addSyncLog(syncId, 'info', `📅 Pierwsza synchronizacja - pobieram ostatnie ${limitMonths} miesiące`);
         }
         
         filesToProcess = await getNewFilesFromDrive(sinceDate, limitMonths);
@@ -96,11 +99,13 @@ export async function POST(request) {
         }
         
         console.log(`📅 Synchronizacja miesiąca: ${targetMonth}`);
+        await queries.addSyncLog(syncId, 'info', `📅 Synchronizacja miesiąca: ${targetMonth}`);
         filesToProcess = await getFilesFromSpecificMonth(targetMonth);
         break;
 
       case 'full':
         console.log(`💾 Pełna synchronizacja - może to potrwać długo...`);
+        await queries.addSyncLog(syncId, 'info', `💾 Pełna synchronizacja - może to potrwać długo...`);
         // Dla pełnej synchronizacji pobierz wszystkie pliki z ostatnich 6 miesięcy
         filesToProcess = await getNewFilesFromDrive(null, 6);
         break;
@@ -110,8 +115,10 @@ export async function POST(request) {
     }
 
     console.log(`📄 Znaleziono ${filesToProcess.length} plików do przetworzenia`);
+    await queries.addSyncLog(syncId, 'info', `📄 Znaleziono ${filesToProcess.length} plików do przetworzenia`);
 
     if (filesToProcess.length === 0) {
+      await queries.addSyncLog(syncId, 'info', '✅ Brak nowych plików do synchronizacji');
       await queries.completeSync(syncId, 0, 0, 0);
       return NextResponse.json({
         success: true,
@@ -126,6 +133,7 @@ export async function POST(request) {
       
       try {
         console.log(`⬇️ Pobieranie: ${file.fullPath}`);
+        await queries.addSyncLog(syncId, 'info', `⬇️ Pobieranie: ${file.fullPath}`, file.fullPath);
         
         // Zapisz metadane pliku do cache
         await queries.upsertDriveFileCache(
@@ -209,6 +217,9 @@ export async function POST(request) {
           if (!existing.image_filename && article.imageFilename) {
             await queries.setArticleImageFilename(existing.article_id, article.imageFilename);
             console.log(`🖼️ Uzupełniono obraz dla istniejącego artykułu: ${article.title}`);
+            await queries.addSyncLog(syncId, 'info', `🖼️ Uzupełniono obraz dla: ${article.title}`, file.fullPath);
+          } else {
+            await queries.addSyncLog(syncId, 'info', `⏭️ Pominięto (już istnieje): ${article.title}`, file.fullPath);
           }
           results.skipped++;
         } else {
@@ -218,6 +229,9 @@ export async function POST(request) {
             if (!existingByPath.image_filename && article.imageFilename) {
               await queries.setArticleImageFilename(existingByPath.article_id, article.imageFilename);
               console.log(`🖼️ Uzupełniono obraz (po ścieżce) dla: ${existingByPath.title}`);
+              await queries.addSyncLog(syncId, 'info', `🖼️ Uzupełniono obraz (po ścieżce) dla: ${existingByPath.title}`, file.fullPath);
+            } else {
+              await queries.addSyncLog(syncId, 'info', `⏭️ Pominięto (już istnieje po ścieżce): ${existingByPath.title}`, file.fullPath);
             }
             results.skipped++;
             continue;
@@ -251,11 +265,13 @@ export async function POST(request) {
           await queries.markDriveFileAsProcessed(file.id, true);
 
           console.log(`✅ Zaimportowano: ${article.title}`);
+          await queries.addSyncLog(syncId, 'success', `✅ Zaimportowano: ${article.title}`, file.fullPath);
           results.imported++;
         }
         
       } catch (error) {
         console.error(`❌ Błąd przetwarzania ${file.fullPath}:`, error.message);
+        await queries.addSyncLog(syncId, 'error', `❌ Błąd: ${error.message}`, file.fullPath);
         results.errors.push({
           file: file.fullPath,
           error: error.message
@@ -276,6 +292,7 @@ export async function POST(request) {
 
     console.log(`✅ Synchronizacja zakończona!`);
     console.log(`📊 Statystyki: ${results.imported} nowych, ${results.skipped} pominiętych, ${results.errors.length} błędów`);
+    await queries.addSyncLog(syncId, 'success', `✅ Synchronizacja zakończona! Statystyki: ${results.imported} nowych, ${results.skipped} pominiętych, ${results.errors.length} błędów`);
 
     return NextResponse.json({
       success: true,
