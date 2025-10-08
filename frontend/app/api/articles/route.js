@@ -22,14 +22,26 @@ export async function GET(request) {
     
     let articles = await queries.getAllArticles();
     
-    // Parsuj JSON fields
-    articles = articles.map(article => ({
-      ...article,
-      sources: JSON.parse(article.sources || '[]'),
-      categories: JSON.parse(article.categories || '[]'),
-      tags: JSON.parse(article.tags || '[]'),
-      ai_fields: article.ai_fields ? article.ai_fields.split(',') : []
-    }));
+    // Parsuj JSON fields z zabezpieczeniem przed błędami
+    articles = articles.map(article => {
+      const safeParse = (jsonString, fallback = []) => {
+        try {
+          const parsed = JSON.parse(jsonString || '[]');
+          return Array.isArray(parsed) ? parsed : fallback;
+        } catch (e) {
+          console.warn(`Błąd parsowania JSON dla artykułu ${article.article_id}:`, e.message);
+          return fallback;
+        }
+      };
+
+      return {
+        ...article,
+        sources: safeParse(article.sources),
+        categories: safeParse(article.categories),
+        tags: safeParse(article.tags),
+        ai_fields: article.ai_fields ? article.ai_fields.split(',') : []
+      };
+    });
     
     // Filtruj po statusie
     if (status && status !== 'all') {

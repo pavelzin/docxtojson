@@ -133,11 +133,22 @@ export default function HomePage() {
     // Filtr wyszukiwania
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase()
-      filtered = filtered.filter(article =>
-        article.title.toLowerCase().includes(searchLower) ||
-        article.lead?.toLowerCase().includes(searchLower) ||
-        (article.tags || []).some(tag => tag.toLowerCase().includes(searchLower))
-      )
+      filtered = filtered.filter(article => {
+        // Bezpieczne sprawdzenie tytułu i lead
+        const titleMatch = article.title?.toLowerCase().includes(searchLower)
+        const leadMatch = article.lead?.toLowerCase().includes(searchLower)
+        
+        // Bezpieczne sprawdzenie tagów - upewnij się że to tablica
+        let tagsMatch = false
+        try {
+          const tags = Array.isArray(article.tags) ? article.tags : []
+          tagsMatch = tags.some(tag => String(tag).toLowerCase().includes(searchLower))
+        } catch (e) {
+          console.warn('Błąd wyszukiwania w tagach:', e)
+        }
+        
+        return titleMatch || leadMatch || tagsMatch
+      })
     }
 
     return filtered
