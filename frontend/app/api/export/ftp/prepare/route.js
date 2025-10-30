@@ -244,6 +244,7 @@ export async function POST(request) {
       jobId,
       files: savedFiles,
       count: bulkArticles.length,
+      jsonFilename: jsonFilename, // Dodaj nazwę pliku JSON
       // Nie wysyłamy całych articles - za duży response może być problemem
       articles: bulkArticles.map(a => ({
         articleId: a.articleId,
