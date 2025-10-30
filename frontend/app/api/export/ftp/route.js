@@ -6,6 +6,9 @@ import { queries } from '@/lib/database'
 import { uploadToFtp } from '@/lib/ftp'
 import { drive, findMonthFolderId, findArticleFolderId, getImageFiles, setCredentials } from '@/lib/google-drive'
 
+// Zwiększony timeout dla dużych eksportów (5 minut)
+export const maxDuration = 300
+
 function sanitizeDirName(name) {
   return String(name || '')
     .replace(/[\\/:*?"<>|]/g, '_')

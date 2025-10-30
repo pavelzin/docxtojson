@@ -2,8 +2,11 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import path from 'path'
 import { promises as fs } from 'fs'
-import { queries } from '@/lib/database'
+import { queries, exportHistory } from '@/lib/database'
 import { drive, findMonthFolderId, findArticleFolderId, getImageFiles, setCredentials } from '@/lib/google-drive'
+
+// Zwiększony timeout dla dużych eksportów (5 minut)
+export const maxDuration = 300
 
 function slugifyFilenameSegment(filename) {
   const polishChars = {
@@ -49,43 +52,49 @@ function extractPhotoAuthorFromFilename(filename) {
   }
 }
 
+// Cache dla folderów miesięcy i artykułów
+const folderCache = new Map()
+const imageCache = new Map()
+
 async function downloadLargestTopImage(drivePath) {
-  console.log('🖼️ Próba pobrania obrazu dla:', drivePath)
-  if (!drivePath) {
-    console.log('❌ Brak drivePath')
-    return null
+  if (!drivePath) return null
+  
+  // Sprawdź cache obrazów
+  if (imageCache.has(drivePath)) {
+    return imageCache.get(drivePath)
   }
+  
   const [monthName, ...rest] = drivePath.split('/')
   const articleName = rest.join('/')
-  console.log('🔍 Szukam miesiąca:', monthName)
   
-  const monthId = await findMonthFolderId(monthName)
+  // Cache dla miesięcy
+  const monthCacheKey = `month:${monthName}`
+  let monthId = folderCache.get(monthCacheKey)
   if (!monthId) {
-    console.log('❌ Nie znaleziono miesiąca:', monthName)
-    return null
+    monthId = await findMonthFolderId(monthName)
+    if (monthId) folderCache.set(monthCacheKey, monthId)
   }
-  console.log('✅ Znaleziono miesiąc, szukam folder artykułu:', articleName)
+  if (!monthId) return null
   
-  const articleFolderId = await findArticleFolderId(monthId, articleName)
+  // Cache dla folderów artykułów
+  const articleCacheKey = `article:${monthId}:${articleName}`
+  let articleFolderId = folderCache.get(articleCacheKey)
   if (!articleFolderId) {
-    console.log('❌ Nie znaleziono folderu artykułu:', articleName)
-    return null
+    articleFolderId = await findArticleFolderId(monthId, articleName)
+    if (articleFolderId) folderCache.set(articleCacheKey, articleFolderId)
   }
-  console.log('✅ Znaleziono folder, pobieranie obrazów...')
+  if (!articleFolderId) return null
   
   const topImages = await getImageFiles(articleFolderId)
-  if (!topImages || topImages.length === 0) {
-    console.log('❌ Brak obrazów w folderze')
-    return null
-  }
-  console.log('✅ Znaleziono', topImages.length, 'obrazów, pobieranie największego...')
+  if (!topImages || topImages.length === 0) return null
   
   const best = topImages.reduce((a, b) => (b.size > a.size ? b : a))
-  console.log('✅ Pobieranie obrazu:', best.name)
-  
   const media = await drive.files.get({ fileId: best.id, alt: 'media' }, { responseType: 'arraybuffer' })
-  console.log('✅ Obraz pobrany!')
-  return { buffer: Buffer.from(media.data), name: best.name }
+  
+  const result = { buffer: Buffer.from(media.data), name: best.name }
+  imageCache.set(drivePath, result)
+  
+  return result
 }
 
 export async function POST(request) {
@@ -145,10 +154,22 @@ export async function POST(request) {
     const bulkArticles = []
     const savedFiles = []
 
+    // Pobierz wszystkie artykuły z bazy najpierw
+    console.log(`📚 Pobieranie ${articleIds.length} artykułów z bazy...`)
+    const articles = []
     for (const id of articleIds) {
       const a = await queries.getArticleById(id)
-      if (!a) continue
+      if (a) articles.push(a)
+    }
+    console.log(`✅ Pobrano ${articles.length} artykułów`)
 
+    // Przetwarzaj artykuły RÓWNOLEGLE z limitem 20 jednocześnie
+    const CONCURRENT_LIMIT = 20
+    let processed = 0
+    
+    async function processArticle(a) {
+      console.log(`🔄 [${++processed}/${articles.length}] Przetwarzanie: ${a.title.substring(0, 50)}...`)
+      
       const exportedArticle = {
         articleId: a.article_id,
         title: a.title,
@@ -163,42 +184,59 @@ export async function POST(request) {
       if (a.categories) exportedArticle.categories = JSON.parse(a.categories || '[]')
       if (a.tags) exportedArticle.tags = JSON.parse(a.tags || '[]')
 
-      // Obraz z Google Drive (zawsze wymagany)
-      {
-        try {
-          const img = await downloadLargestTopImage(a.drive_path)
-          if (img) {
-            // 🎯 NAJPIERW parsuj photoAuthor z oryginalnej nazwy pliku (priorytet dla Drive)
-            const photoAuthor = extractPhotoAuthorFromFilename(img.name) || a.photo_author
-            if (photoAuthor) {
-              exportedArticle.photoAuthor = photoAuthor
-            }
-            
-            // Potem sanityzuj nazwę dla lokalnego pliku
-            const ext = getFileExtension(img.name) || 'jpg'
-            const titleSlug = slugifyFilenameSegment(a.title).replace(/\.+/g, '-')
-            const baseName = slugifyFilenameSegment(`${a.article_id}_${titleSlug}`)
-            const finalName = makeUniqueName(baseName, ext, usedNames)
-            const localImagePath = path.join(localRoot, finalName)
-            await fs.writeFile(localImagePath, img.buffer)
-            exportedArticle.images = [{ url: `file:///${finalName}`, title: a.title_social || a.title }]
-            savedFiles.push(finalName)
+      // Obraz z Google Drive
+      try {
+        const img = await downloadLargestTopImage(a.drive_path)
+        if (img) {
+          const photoAuthor = extractPhotoAuthorFromFilename(img.name) || a.photo_author
+          if (photoAuthor) {
+            exportedArticle.photoAuthor = photoAuthor
           }
-        } catch (e) {
-          console.warn('[FTP-PREPARE] Image download failed:', e?.message || e)
-          // Jeśli błąd sieci - kontynuuj bez obrazu zamiast crashować
-          if (e?.code === 'ENOTFOUND' || e?.message?.includes('googleapis.com')) {
-            console.log('🌐 Błąd sieci - pomijam obraz dla artykułu:', a.article_id)
-          }
+          
+          const ext = getFileExtension(img.name) || 'jpg'
+          const titleSlug = slugifyFilenameSegment(a.title).replace(/\.+/g, '-')
+          const baseName = slugifyFilenameSegment(`${a.article_id}_${titleSlug}`)
+          const finalName = makeUniqueName(baseName, ext, usedNames)
+          const localImagePath = path.join(localRoot, finalName)
+          await fs.writeFile(localImagePath, img.buffer)
+          exportedArticle.images = [{ url: `file:///${finalName}`, title: a.title_social || a.title }]
+          savedFiles.push(finalName)
+          console.log(`✅ [${processed}/${articles.length}] Zapisano obraz: ${finalName}`)
+        } else {
+          console.log(`⚠️ [${processed}/${articles.length}] Brak obrazu dla: ${a.article_id}`)
+        }
+      } catch (e) {
+        console.warn(`❌ [${processed}/${articles.length}] Błąd obrazu:`, e?.message || e)
+        if (e?.code === 'ENOTFOUND' || e?.message?.includes('googleapis.com')) {
+          console.log('🌐 Błąd sieci - pomijam obraz dla artykułu:', a.article_id)
         }
       }
 
-      bulkArticles.push(exportedArticle)
+      return exportedArticle
     }
 
-    const localJsonPath = path.join(localRoot, 'articles.json')
+    // Przetwarzaj po CONCURRENT_LIMIT naraz
+    for (let i = 0; i < articles.length; i += CONCURRENT_LIMIT) {
+      const batch = articles.slice(i, i + CONCURRENT_LIMIT)
+      const results = await Promise.all(batch.map(processArticle))
+      bulkArticles.push(...results)
+    }
+    
+    console.log(`✅ Przetworzono wszystkie ${bulkArticles.length} artykułów`)
+
+    // Generuj nazwę pliku z datą i godziną
+    const now = new Date()
+    const dateStr = now.toISOString().slice(0, 10) // YYYY-MM-DD
+    const timeStr = now.toTimeString().slice(0, 5).replace(':', '-') // HH-MM
+    const jsonFilename = `articles_${dateStr}_${timeStr}.json`
+    
+    const localJsonPath = path.join(localRoot, jsonFilename)
     await fs.writeFile(localJsonPath, Buffer.from(JSON.stringify({ articles: bulkArticles }, null, 2)))
-    savedFiles.push('articles.json')
+    savedFiles.push(jsonFilename)
+
+    // Zapisz do historii eksportów
+    await exportHistory.add(jobId, articleIds, jsonFilename, bulkArticles.length)
+    console.log(`📝 Zapisano eksport do historii: ${jsonFilename}`)
 
     // MINIMALNY response - tylko to co potrzebne
     const responseData = {

@@ -73,9 +73,9 @@ export default function LayoutClient({ children, appVersion }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
-              <h1 className="text-xl font-semibold text-gray-900">
+              <a href="/" className="text-xl font-semibold text-gray-900 hover:text-blue-600 transition-colors cursor-pointer">
                 📄 DOCX Editor
-              </h1>
+              </a>
               {appVersion && (
                 <span className="ml-3 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
                   v{appVersion}
@@ -96,6 +96,12 @@ export default function LayoutClient({ children, appVersion }) {
                   className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
                 >
                   📝 Logi Sync
+                </a>
+                <a 
+                  href="/export-history" 
+                  className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                >
+                  📦 Historia eksportów
                 </a>
                 <a 
                   href="/import" 

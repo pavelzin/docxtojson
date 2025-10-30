@@ -4,7 +4,7 @@ const { promisify } = require('util');
 
 // Inicjalizacja bazy danych
 // Użyj zmiennej środowiskowej lub domyślnej ścieżki bezwzględnej
-const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), 'frontend', 'articles.db');
+const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), 'articles.db');
 console.log('🗄️ Ścieżka do bazy danych:', dbPath);
 const db = new sqlite3.Database(dbPath);
 
@@ -140,6 +140,20 @@ const initializeDatabase = async () => {
         message TEXT NOT NULL,
         file_path TEXT,
         FOREIGN KEY (sync_id) REFERENCES sync_log(id)
+      )
+    `);
+
+    // Tabela dla historii eksportów FTP
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS export_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        export_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        article_count INTEGER NOT NULL,
+        article_ids TEXT NOT NULL, -- JSON array z ID artykułów
+        job_id TEXT NOT NULL, -- timestamp/folder eksportu
+        json_filename TEXT NOT NULL,
+        status TEXT DEFAULT 'completed', -- 'completed', 'failed'
+        error_message TEXT
       )
     `);
 
@@ -594,12 +608,44 @@ const helpers = {
   }
 };
 
+// Historia eksportów
+const exportHistory = {
+  add: async (jobId, articleIds, jsonFilename, articleCount) => {
+    return await dbRun(
+      `INSERT INTO export_history (job_id, article_ids, json_filename, article_count, status) 
+       VALUES (?, ?, ?, ?, 'completed')`,
+      [jobId, JSON.stringify(articleIds), jsonFilename, articleCount]
+    );
+  },
+  
+  getAll: async () => {
+    return await dbAll(
+      `SELECT * FROM export_history ORDER BY export_date DESC`
+    );
+  },
+  
+  getById: async (id) => {
+    return await dbGet(
+      `SELECT * FROM export_history WHERE id = ?`,
+      [id]
+    );
+  },
+  
+  getByJobId: async (jobId) => {
+    return await dbGet(
+      `SELECT * FROM export_history WHERE job_id = ?`,
+      [jobId]
+    );
+  }
+};
+
 // Eksportuj API
 module.exports = {
   db,
   initializeDatabase,
   queries: articleQueries,
   helpers,
+  exportHistory,
   // Prompty AI
   prompts: {
     getAll: async () => {

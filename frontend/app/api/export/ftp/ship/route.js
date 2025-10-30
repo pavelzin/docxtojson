@@ -3,7 +3,8 @@ import path from 'path'
 import { promises as fs } from 'fs'
 import { uploadToFtp } from '@/lib/ftp'
 
-// Removed BYPASS_AUTH - proper auth required
+// Zwiększony timeout dla uploadu FTP (3 minuty)
+export const maxDuration = 180
 
 export async function POST(request) {
   try {

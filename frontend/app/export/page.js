@@ -29,11 +29,25 @@ export default function ExportJobsPage() {
     setJob(null)
     setLoading(true)
     try {
+      // Timeout 5 minut dla dużych eksportów
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 300000)
+      
       const res = await fetch('/api/export/ftp/prepare', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ articleIds: ids })
+        body: JSON.stringify({ articleIds: ids }),
+        signal: controller.signal
       })
+      
+      clearTimeout(timeoutId)
+      
+      // Sprawdź czy odpowiedź to JSON
+      const contentType = res.headers.get('content-type')
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error(`Serwer zwrócił nieoczekiwany format (${contentType}). Prawdopodobnie przekroczono timeout - spróbuj eksportować mniej artykułów naraz (max 10).`)
+      }
+      
       const data = await res.json()
       if (!res.ok || !data.success) {
         // Specjalna obsługa błędu autoryzacji
@@ -46,7 +60,11 @@ export default function ExportJobsPage() {
       }
       setJob(data)
     } catch (e) {
-      setError(e.message)
+      if (e.name === 'AbortError') {
+        setError('Przekroczono limit czasu (5 minut). Eksport zajmuje za długo - spróbuj mniejszej liczby artykułów.')
+      } else {
+        setError(e.message)
+      }
     } finally {
       setLoading(false)
     }
@@ -79,16 +97,34 @@ export default function ExportJobsPage() {
     setShipping(true)
     setError('')
     try {
+      // Timeout 3 minuty dla uploadu FTP
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 180000)
+      
       const res = await fetch('/api/export/ftp/ship', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobId: job.jobId })
+        body: JSON.stringify({ jobId: job.jobId }),
+        signal: controller.signal
       })
+      
+      clearTimeout(timeoutId)
+      
+      // Sprawdź czy odpowiedź to JSON
+      const contentType = res.headers.get('content-type')
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error(`Serwer zwrócił nieoczekiwany format (${contentType}). Upload na FTP zajął za długo.`)
+      }
+      
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error || 'Błąd wysyłki')
       alert(`Wysłano ${data.uploaded.length} plików na FTP`)
     } catch (e) {
-      setError(e.message)
+      if (e.name === 'AbortError') {
+        setError('Przekroczono limit czasu (3 minuty) dla uploadu FTP.')
+      } else {
+        setError(e.message)
+      }
     } finally {
       setShipping(false)
     }
@@ -130,12 +166,11 @@ export default function ExportJobsPage() {
             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-3"></div>
             <span className="font-medium">Przygotowuję eksport FTP...</span>
           </div>
-          <div className="text-sm space-y-1">
+          <div className="text-sm space-y-1 mb-3">
             <div>• Pobieranie artykułów z bazy danych</div>
-            <div>• Ściąganie obrazów z Google Drive</div>
-            <div>• Sanityzacja nazw plików (usuwanie polskich znaków, spacji)</div>
-            <div>• Tworzenie lokalnych kopii plików</div>
-            <div>• Generowanie articles.json z poprawnymi ścieżkami</div>
+            <div>• Ściąganie obrazów z Google Drive (20 równolegle)</div>
+            <div>• Sanityzacja nazw plików</div>
+            <div>• Generowanie articles.json</div>
           </div>
         </div>
       )}
