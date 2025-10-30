@@ -8,7 +8,6 @@ import {
   getFilesFromSpecificMonth,
   downloadDocxFile,
   findBestArticleImage,
-  findBestArticleImageDeep,
   findMonthFolderId,
   findArticleFolderId,
   drive
@@ -164,10 +163,7 @@ export async function POST(request) {
           }
 
           if (articleFolderId) {
-            let bestImage = await findBestArticleImage(articleFolderId);
-            if (!bestImage) {
-              bestImage = await findBestArticleImageDeep(articleFolderId);
-            }
+            const bestImage = await findBestArticleImage(articleFolderId);
             if (bestImage) {
               article.imageFilename = bestImage.name;
               article.imageModifiedTime = bestImage.modifiedTime;
